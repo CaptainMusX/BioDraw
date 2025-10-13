@@ -1,80 +1,924 @@
-/* 
- * Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT license.
- * See LICENSE in the project root for license information.
- */
+/* BioDraw 任务窗格样式 */
 
- html,
- body {
-     width: 100%;
-     height: 100%;
-     margin: 0;
-     padding: 0;
- }
- 
- ul {
-     margin: 0;
-     padding: 0;
- }
- 
- .ms-welcome__header {
-    padding: 20px;
-    padding-bottom: 30px;
-    padding-top: 100px;
-    display: -webkit-flex;
-    display: flex;
-    -webkit-flex-direction: column;
-    flex-direction: column;
-    align-items: center;
- }
-
- .ms-welcome__main {
-    display: -webkit-flex;
-    display: flex;
-    -webkit-flex-direction: column;
-    flex-direction: column;
-    -webkit-flex-wrap: nowrap;
-    flex-wrap: nowrap;
-    -webkit-align-items: center;
-    align-items: center;
-    -webkit-flex: 1 0 0;
-    flex: 1 0 0;
-    padding: 10px 20px;
- }
- 
- .ms-welcome__main > h2 {
-     width: 100%;
-     text-align: center;
- }
- 
- .ms-welcome__features {
-     list-style-type: none;
-     margin-top: 20px;
- }
- 
- .ms-welcome__features.ms-List .ms-ListItem {
-     padding-bottom: 20px;
-     display: -webkit-flex;
-     display: flex;
- }
- 
- .ms-welcome__features.ms-List .ms-ListItem > .ms-Icon {
-     margin-right: 10px;
- }
- 
- .ms-welcome__action.ms-Button--hero {
-     margin-top: 30px;
- }
- 
-.ms-Button.ms-Button--hero .ms-Button-label {
-  color: #0078d7;
+/* ============================================
+   Task A: Minimum Width Configuration
+   ============================================ */
+:root {
+    /* Footer Configuration */
+    --bd-footer-h: 56px;
+    
+    /* G3: Icon display size (default 80px) */
+    --icon-display-size: 80px;
+    
+    /* Task A: Button and spacing configuration */
+    --gap: 8px;
+    --btn-size: 40px;
+    /* Minimum width = search(flexible) + 3 buttons + 4 gaps */
+    --pane-min: calc(var(--btn-size) * 3 + var(--gap) * 4 + 100px);
+    
+    /* Theme Colors - Light Mode */
+    --bd-footer-bg: rgba(248, 249, 250, 0.95);
+    --bd-footer-border: rgba(0, 0, 0, 0.08);
+    --bd-footer-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+    --bd-footer-text: #6c757d;
 }
 
-.ms-Button.ms-Button--hero:hover .ms-Button-label,
-.ms-Button.ms-Button--hero:focus .ms-Button-label{
-  color: #005a9e;
-  cursor: pointer;
+/* Dark Mode Theme Variables */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bd-footer-bg: rgba(33, 37, 41, 0.95);
+        --bd-footer-border: rgba(255, 255, 255, 0.1);
+        --bd-footer-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+        --bd-footer-text: #adb5bd;
+    }
 }
 
-b {
-    font-weight: bold;
+[data-theme="dark"],
+body.dark-mode {
+    --bd-footer-bg: rgba(33, 37, 41, 0.95);
+    --bd-footer-border: rgba(255, 255, 255, 0.1);
+    --bd-footer-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+    --bd-footer-text: #adb5bd;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ============================================
+   Task A: Enforce Minimum Width on All Containers
+   ============================================ */
+html, body, #bd-root, #root, #app, .taskpane, .biobdraw-pane {
+    min-width: var(--pane-min) !important;
+}
+
+/* ============================================
+   C-2: Full-Height Flex Container Setup
+   ============================================ */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ===== C-2: Root Container - Flex Layout ===== */
+#bd-root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    height: 100vh;
+    overflow: hidden;
+    transition: background-color 0.2s;
+}
+
+/* ============================================
+   Header Styling - CRITICAL FIX for z-index
+   ============================================ */
+#bd-header {
+    position: sticky;
+    top: 0;
+    z-index: 200 !important; /* CRITICAL: Higher than main content */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 12px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+}
+
+/* ============================================
+   FIXED: Toolbar with Grid Layout for 2 Fixed Buttons
+   ============================================ */
+.search-row {
+    display: grid !important;
+    /* FIXED: 1 flexible search + 2 fixed buttons (category + view toggle) */
+    grid-template-columns: 1fr var(--btn-size) var(--btn-size) !important;
+    gap: var(--gap);
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
+    min-width: var(--pane-min) !important;
+}
+
+/* ============================================
+   Task B: Search Control with Absolutely Positioned Icon
+   ============================================ */
+.bd-search {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    position: relative !important;
+    overflow: visible;
+}
+
+.bd-search:focus-within {
+    background: #ffffff;
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+/* Task B: Search Icon - Absolutely Positioned at Left */
+.bd-search-icon {
+    position: absolute !important;
+    left: 8px !important;
+    right: auto !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 18px !important;
+    height: 18px !important;
+    padding: 0 !important;
+    padding-right: 10px !important; /* Space for separator line */
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    color: #605e5c;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+/* Separator line after search icon */
+.bd-search-icon::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: calc(100% - 4px);
+    border-radius: 999px;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0%,
+        rgba(0, 0, 0, 0.18) 25%,
+        rgba(0, 0, 0, 0.18) 75%,
+        rgba(0, 0, 0, 0) 100%
+    );
+}
+
+.bd-search-icon:hover {
+    color: #0078d4;
+}
+
+.bd-search-icon:active {
+    transform: translateY(-50%) scale(0.95) !important;
+}
+
+.bd-search-icon:focus {
+    outline: none;
+}
+
+/* Task B: Search Input with Padding for Icon + Separator */
+.bd-search-input {
+    flex: 1;
+    min-width: 0;
+    order: 1;
+
+    /* Task B: Add padding-left for icon + separator space */
+    padding-left: 46px !important; /* Space for icon + separator */
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-right: 0;
+    margin: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    
+    /* Typography */
+    font-size: 14px;
+    line-height: 1.5;
+    color: #323130;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box !important;
+}
+
+.bd-search-input::placeholder {
+    color: #a19f9d;
+    transition: opacity 0.2s ease;
+}
+
+@media (max-width: 420px) {
+    .bd-search-input::placeholder {
+        opacity: 0;
+    }
+}
+
+@media (max-width: 360px) {
+    .bd-search {
+        padding: 6px 8px;
+        gap: 6px;
+        height: 36px;
+    }
+    
+    .bd-search-input {
+        font-size: 13px;
+    }
+    
+    .bd-search-icon {
+        left: 6px !important;
+    }
+}
+
+/* Compact Mode: Adjust for hidden input */
+@media (max-width: 420px) {
+    .bd-search {
+        padding: 6px 10px;
+        height: 36px;
+    }
+
+    .bd-search-input {
+        font-size: 13px;
+        padding-left: 40px !important;
+    }
+
+    .bd-search-icon {
+        left: 6px !important;
+    }
+}
+
+/* D-1: Search Popover Styles */
+.bd-search-popover {
+    position: absolute;
+    top: 60px;
+    left: 16px;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 10px;
+    min-width: 280px;
+    max-width: calc(100vw - 32px);
+    animation: bd-popover-enter 0.2s ease-out;
+}
+
+@keyframes bd-popover-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bd-search-popover-content {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.bd-search-popover-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #323130;
+    outline: none;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.bd-search-popover-input:focus {
+    border-color: #0078d4;
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+}
+
+.bd-search-popover-input::placeholder {
+    color: #a19f9d;
+}
+
+.bd-search-popover-btn {
+    padding: 8px 10px;
+    background: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    min-width: 36px;
+    min-height: 36px;
+}
+
+.bd-search-popover-btn:hover {
+    background: #106ebe;
+    box-shadow: 0 2px 4px rgba(0, 120, 212, 0.2);
+}
+
+.bd-search-popover-btn:active {
+    background: #005a9e;
+    transform: scale(0.95);
+}
+
+.bd-search-popover-btn:focus {
+    outline: 2px solid #0078d4;
+    outline-offset: 2px;
+}
+
+@media (max-width: 360px) {
+    .bd-search-popover {
+        left: 10px;
+        right: 10px;
+        min-width: 0;
+        max-width: none;
+    }
+    
+    .bd-search-popover-input {
+        font-size: 13px;
+        padding: 6px 10px;
+    }
+    
+    .bd-search-popover-btn {
+        padding: 6px 8px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+}
+
+/* ============================================
+   Task A: Icon Buttons - Fixed Square Size
+   ============================================ */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* Task A: Fixed size using CSS variable */
+    width: var(--btn-size) !important;
+    height: var(--btn-size) !important;
+    min-width: var(--btn-size) !important;
+    min-height: var(--btn-size) !important;
+    flex: 0 0 var(--btn-size) !important;
+    flex-shrink: 0 !important;
+    
+    padding: 0;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    background: #ffffff;
+    border-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.icon-btn:active {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+    transform: scale(0.98);
+}
+
+.icon-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.icon-btn[aria-pressed="true"] {
+    background: #ffffff;
+    border-color: #ffffff;
+}
+
+/* ============================================
+   CRITICAL FIX: Category Menu z-index above main
+   ============================================ */
+/* Ensure parent containers don't clip menu */
+.toolbar,
+.header-wrap,
+#bd-header {
+    overflow: visible !important;
+}
+
+/* Category menu - fixed positioning to avoid parent clipping */
+.category-menu,
+#category-menu {
+    position: fixed !important;
+    /* top and left will be set dynamically by JS */
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    z-index: 9999 !important; /* CRITICAL: Above all other content */
+    
+    /* Scrollable content when needed */
+    overflow: auto;
+    max-height: 60vh;
+    display: none;
+    grid-template-columns: 240px 1fr;
+    gap: 0;
+}
+
+.category-menu[aria-hidden="false"] {
+    display: grid;
+    animation: slideDownMenu 0.2s ease-out;
+}
+
+@keyframes slideDownMenu {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.category-primary,
+#cat-l1 {
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    overflow-y: auto;
+    border-right: 1px solid #e5e7eb;
+    background: #fafafa;
+    z-index: 2;
+    position: relative;
+    pointer-events: auto !important;
+}
+
+.category-item,
+.l1-item {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #374151;
+    transition: background 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-family: inherit;
+    pointer-events: auto !important;
+}
+
+.category-item:hover,
+.category-item:focus,
+.l1-item:hover,
+.l1-item:focus {
+    background: #f3f4f6;
+    outline: none;
+}
+
+.category-item:focus-visible,
+.l1-item:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+.category-secondary,
+#cat-l2 {
+    padding: 8px;
+    overflow-y: auto;
+    display: none;
+    z-index: 1;
+    position: relative;
+    background: #fff;
+}
+
+.category-secondary[style*="display: block"],
+#cat-l2[style*="display: block"] {
+    display: block;
+    animation: slideLeftIn 0.15s ease-out;
+}
+
+@keyframes slideLeftIn {
+    from {
+        opacity: 0;
+        transform: translateX(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.category-secondary ul,
+#cat-l2 ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.category-subitem,
+.l2-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #6b7280;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.all-of-l1 {
+    font-weight: 500;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 4px;
+    padding-bottom: 8px;
+}
+
+.category-subitem:hover,
+.category-subitem:focus,
+.l2-item:hover,
+.l2-item:focus {
+    background: #f3f4f6;
+    outline: none;
+}
+
+.category-subitem:focus-visible,
+.l2-item:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+}
+
+/* ============================================
+   Settings Dialog
+   ============================================ */
+
+.settings-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.settings-content {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    width: 90%;
+    max-width: 420px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.settings-content h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    color: #111827;
+}
+
+.settings-section {
+    margin-bottom: 20px;
+}
+
+.settings-label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+}
+
+.preset-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.preset-btn {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.preset-btn:hover {
+    border-color: #9ca3af;
+    background: #f9fafb;
+}
+
+.preset-btn.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.preset-btn:active {
+    transform: scale(0.98);
+}
+
+.settings-row {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-row label {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+}
+
+.settings-row input[type="number"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1.5px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.settings-row input[type="number"]:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.settings-unit {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.settings-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+    justify-content: flex-end;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    font-family: inherit;
+}
+
+.btn-primary {
+    background: #2563eb;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #1d4ed8;
+}
+
+.btn-primary:active {
+    background: #1e40af;
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+.btn-secondary:active {
+    background: #d1d5db;
+    transform: scale(0.98);
+}
+
+.toast-notification {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: #111827;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 3000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.toast-notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.view-toggle-btn {
+}
+
+.view-toggle-icon {
+    display: block;
+    pointer-events: none;
+}
+
+/* ============================================
+   CRITICAL FIX: Main Content z-index below header
+   ============================================ */
+#bd-main {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: auto;
+    background-color: #ffffff;
+    padding-bottom: var(--bd-footer-h);
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    scroll-padding-bottom: var(--bd-footer-h);
+    z-index: 1 !important; /* CRITICAL: Below header (200) */
+    position: relative;
+}
+
+#icon-grid.view-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--bd-cols, 3), 160px);
+    column-gap: var(--bd-gap, 10px);
+    row-gap: 10px;
+    justify-content: space-between;
+    padding: 16px;
+}
+
+#icon-grid.view-grid .icon-item {
+    width: 160px;
+}
+
+/* Grid mode: Square container, proportional scaling */
+#icon-grid.view-grid .icon-item img {
+    width: var(--icon-display-size);
+    height: var(--icon-display-size);
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+#icon-grid.is-measuring {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+#icon-grid.view-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+}
+
+#icon-grid.view-list .icon-item {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+}
+
+/* List mode: Height constrained, width auto-scales proportionally */
+#icon-grid.view-list .icon-item img {
+    height: auto;
+    width: auto;
+    max-height: var(--icon-display-size);
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.icon-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.icon-item:hover {
+    background-color: #f0f0f0;
+    border-color: #0078d4;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Default icon display - proportional scaling */
+.icon-item img {
+    max-width: var(--icon-display-size);
+    max-height: var(--icon-display-size);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: 5px;
+}
+
+.icon-item .icon-name {
+    font-size: 12px;
+    text-align: center;
+    color: #333;
+    word-break: break-word;
+}
+
+#bd-footer {
+    position: sticky;
+    bottom: 0;
+    flex: 0 0 var(--bd-footer-h);
+    height: var(--bd-footer-h);
+    min-height: var(--bd-footer-h);
+    background-color: var(--bd-footer-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--bd-footer-border);
+    box-shadow: var(--bd-footer-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    color: var(--bd-footer-text);
+    font-size: 12px;
+    line-height: 1.4;
+    z-index: 100 !important;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#bd-footer > * {
+    margin: 0;
+    padding: 0;
+}
+
+#bd-footer #metaText {
+    font-size: 12px;
+    color: inherit;
+}
+
+#bd-footer a,
+#bd-footer button {
+    color: inherit;
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+#bd-footer a:hover,
+#bd-footer button:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] #bd-footer a:hover,
+[data-theme="dark"] #bd-footer button:hover,
+body.dark-mode #bd-footer a:hover,
+body.dark-mode #bd-footer button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
