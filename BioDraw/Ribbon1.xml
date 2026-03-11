@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="Ribbon_Load">
+  <ribbon>
+    <tabs>
+      <tab id="TabBioDraw" label="BioDraw">
+        <group id="GroupRegion1" label="帮助">
+          <menu id="AboutMenu" label="关于" getImage="GetBrandImage" size="large">
+            <button id="AboutMenuInfo" label="关于" onAction="OnAbout"/>
+            <button id="AboutMenuProjectUrl" label="项目地址" onAction="OnOpenProjectAddress"/>
+            <button id="AboutMenuMaterialLibrary" label="素材库" onAction="OnSetMaterialLibraryPath"/>
+          </menu>
+        </group>
+        <group id="GroupRegion2" label="素材库">
+          <box id="MaterialRoot" boxStyle="horizontal">
+            <box id="MaterialLeftColumn" boxStyle="vertical">
+              <box id="Level1Row" boxStyle="horizontal">
+                <labelControl id="LblLevel1" label="类别"/>
+                <dropDown id="DdLevel1"
+                          sizeString="XXXXXXXXXXXXXXXXX"
+                          getItemCount="GetLevel1Count"
+                          getItemLabel="GetLevel1Label"
+                          getSelectedItemIndex="GetLevel1SelectedIndex"
+                          onAction="OnLevel1Changed"/>
+              </box>
+              <box id="Level2Row" boxStyle="horizontal">
+                <labelControl id="LblLevel2" label="子类"/>
+                <dropDown id="DdLevel2"
+                          sizeString="XXXXXXXXXXXXXXXXX"
+                          getItemCount="GetLevel2Count"
+                          getItemLabel="GetLevel2Label"
+                          getSelectedItemIndex="GetLevel2SelectedIndex"
+                          onAction="OnLevel2Changed"/>
+              </box>
+              <box id="SearchRow" boxStyle="horizontal">
+                <labelControl id="LblSearch" label="搜索"/>
+                <editBox id="TxtMaterialSearch"
+                         sizeString="XXXXXXXXXXXXXXXXXXX"
+                         getText="GetMaterialSearchText"
+                         onChange="OnMaterialSearchChanged"/>
+              </box>
+            </box>
+            <box id="MaterialRightColumn" boxStyle="horizontal">
+              <button id="BtnMaterial1" size="large" showImage="true" getImage="GetMaterialImage1" onAction="OnMaterialClick1" getLabel="GetMaterialLabel1" getEnabled="GetMaterialEnabled1" getScreentip="GetMaterialScreentip1" />
+              <button id="BtnMaterial2" size="large" showImage="true" getImage="GetMaterialImage2" onAction="OnMaterialClick2" getLabel="GetMaterialLabel2" getEnabled="GetMaterialEnabled2" getScreentip="GetMaterialScreentip2" />
+              <button id="BtnMaterial3" size="large" showImage="true" getImage="GetMaterialImage3" onAction="OnMaterialClick3" getLabel="GetMaterialLabel3" getEnabled="GetMaterialEnabled3" getScreentip="GetMaterialScreentip3" />
+              <button id="BtnMaterial4" size="large" showImage="true" getImage="GetMaterialImage4" onAction="OnMaterialClick4" getLabel="GetMaterialLabel4" getEnabled="GetMaterialEnabled4" getScreentip="GetMaterialScreentip4" />
+              <button id="BtnMaterial5" size="large" showImage="true" getImage="GetMaterialImage5" onAction="OnMaterialClick5" getLabel="GetMaterialLabel5" getEnabled="GetMaterialEnabled5" getScreentip="GetMaterialScreentip5" />
+              <button id="BtnMaterial6" size="large" showImage="true" getImage="GetMaterialImage6" onAction="OnMaterialClick6" getLabel="GetMaterialLabel6" getEnabled="GetMaterialEnabled6" getScreentip="GetMaterialScreentip6" />
+              <box id="MaterialNavBox" boxStyle="vertical">
+                <button id="BtnPageUp" size="normal" label="▲" onAction="OnMaterialPageUp" showImage="false"/>
+                <button id="BtnPageDown" size="normal" label="▼" onAction="OnMaterialPageDown" showImage="false"/>
+              </box>
+            </box>
+          </box>
+        </group>
+        <group id="GroupRegion4" label="图色替换">
+          <box id="ImageReplaceRoot" boxStyle="horizontal">
+            <box id="ImageReplacePanel" boxStyle="horizontal">
+              <box id="ImageReplaceInputs" boxStyle="vertical">
+                <box id="ImageReplaceSourceRow" boxStyle="horizontal">
+                  <labelControl id="LblImageReplaceSource" label="原色"/>
+                  <editBox id="TxtImageReplaceSourceColor" sizeString="XXXXXXXXXXXX" getText="GetImageReplaceSourceColorText" onChange="OnImageReplaceSourceColorChanged"/>
+                  <button id="BtnPickImageReplaceSourceColor" label="取色" onAction="OnPickImageReplaceSourceColor"/>
+                </box>
+                <box id="ImageReplaceNewRow" boxStyle="horizontal">
+                  <labelControl id="LblImageReplaceNew" label="新色"/>
+                  <editBox id="TxtImageReplaceNewColor" sizeString="XXXXXXXXXXXX" getText="GetImageReplaceNewColorText" onChange="OnImageReplaceNewColorChanged"/>
+                  <button id="BtnPickImageReplaceNewColor" label="取色" onAction="OnPickImageReplaceNewColor"/>
+                </box>
+                <box id="ImageReplacePresetRow" boxStyle="horizontal">
+                  <labelControl id="LblImageReplacePreset" label="预设"/>
+                  <dropDown id="DdImageReplacePreset"
+                            sizeString="XXXXXXXXXX"
+                            getItemCount="GetImageReplacePresetItemCount"
+                            getItemLabel="GetImageReplacePresetItemLabel"
+                            getSelectedItemIndex="GetImageReplacePresetSelectedIndex"
+                            onAction="OnImageReplacePresetDropDownChanged"/>
+                  <button id="BtnImageReplacePresetSettings" label="设置" onAction="OnEditImageReplacePreset"/>
+                </box>
+              </box>
+              <box id="ImageReplaceActionColumn" boxStyle="vertical">
+                <button id="ApplyImageReplace"
+                        label="换&#8288;色"
+                        showImage="true"
+                        showLabel="true"
+                        onAction="OnApplyImageReplace"
+                        getImage="GetBrandImage"
+                        size="large"/>
+              </box>
+            </box>
+          </box>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
