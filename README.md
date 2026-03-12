@@ -118,12 +118,3 @@ magick -version
 - Windows 设置 -> 应用 -> 已安装应用（或控制面板 -> 程序和功能）
 - 找到 `BioDraw` 后卸载
 
----
-
-## 开发者发布说明（简版）
-
-1. 在 Visual Studio 使用 `Release | Any CPU`
-2. 右键项目 -> 发布，版本设为 `1.0.0.0`
-3. 生成 `setup.exe` 与 `BioDraw.vsto`
-4. 推送代码并打 tag：`v1.0.0`
-5. 在 GitHub Release 上传安装包资产
