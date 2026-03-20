@@ -48,17 +48,33 @@ namespace BioDraw
         private int selectedLevel2Index;
         private int selectedLevel3Index;
         private int materialPageIndex = 0;
-        private const int MaterialPageSize = 6;
+        private const int MaterialPreviewButtonCount = 20;
+        private int materialPreviewCount = 5;
         private const int MaterialThumbnailWidth = 132;
         private const int MaterialThumbnailHeight = 100;
         private const float MaterialLabelWidthRatio = 1.0f;
         private const int MaterialLabelMaxLines = 2;
         private const string TransparentPlaceholderResourceName = "BioDraw.BioDrawIcon.blank-image-200x200.png";
+        private const string PickerColorResourceName = "BioDraw.BioDrawIcon.picker-color.png";
+        private const string SettingsGearResourceName = "BioDraw.BioDrawIcon.settings-gear.png";
+        private const string BrandPngResourceName = "BioDraw.BioDrawIcon.BioDraw.png";
+        private const string ImageRecolorResourceName = "BioDraw.BioDrawIcon.image-recolor.png";
+        private const string PickerColorFileName = "picker-color.png";
+        private const string LegacyPickerColorFileName = "Picker_color .png";
+        private const string BrandPngFileName = "BioDraw.png";
+        private const string SettingsGearPngFileName = "settings-gear.png";
+        private const string ImageRecolorPngFileName = "image-recolor.png";
+        private const string RibbonEmptyInputToken = "\u2060";
         private string materialSearchText;
         private double imageReplaceFuzzInput;
         private stdole.IPictureDisp brandImageLarge;
         private stdole.IPictureDisp brandImageSmall;
         private stdole.IPictureDisp transparentPlaceholderImage;
+        private stdole.IPictureDisp pickerButtonImage;
+        private stdole.IPictureDisp settingsButtonImage;
+        private stdole.IPictureDisp imageRecolorButtonImage;
+        private stdole.IPictureDisp pageUpButtonImage;
+        private stdole.IPictureDisp pageDownButtonImage;
         private readonly List<ImageReplacePreset> imageReplacePresets;
         private readonly string presetStorePath;
         private const string projectAddressUrl = "https://github.com/CaptainMusX/BioDraw";
@@ -69,6 +85,8 @@ namespace BioDraw
         private List<MaterialEntry> materialSearchCacheEntries;
         private string imageReplaceSourceColorInput;
         private string imageReplaceNewColorInput;
+        private readonly List<string> imageReplaceSourceColorOptions;
+        private readonly List<string> imageReplaceNewColorOptions;
         private bool presetEditorSaveAsDefaultChecked;
         private Rectangle presetEditorBounds;
         private bool hasPresetEditorBounds;
@@ -90,6 +108,8 @@ namespace BioDraw
         public Ribbon1()
         {
             imageReplacePresets = new List<ImageReplacePreset>();
+            imageReplaceSourceColorOptions = new List<string>();
+            imageReplaceNewColorOptions = new List<string>();
             materialPreviewCache = new Dictionary<string, stdole.IPictureDisp>(StringComparer.OrdinalIgnoreCase);
             presetStorePath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -102,6 +122,8 @@ namespace BioDraw
             imageReplaceSourceColorInput = string.Empty;
             imageReplaceNewColorInput = string.Empty;
             imageReplaceFuzzInput = 5.0;
+            materialPreviewCount = 5;
+            ResetImageReplaceColorOptions();
             materialSearchText = string.Empty;
             level1Items = new List<string>
             {
@@ -339,6 +361,77 @@ namespace BioDraw
             return brandImageLarge ?? brandImageSmall;
         }
 
+        public stdole.IPictureDisp GetPickerButtonImage(Office.IRibbonControl control)
+        {
+            EnsureBrandImages();
+            return pickerButtonImage ?? brandImageSmall ?? brandImageLarge;
+        }
+
+        public stdole.IPictureDisp GetSettingsButtonImage(Office.IRibbonControl control)
+        {
+            EnsureBrandImages();
+            return settingsButtonImage ?? brandImageSmall ?? brandImageLarge;
+        }
+
+        public stdole.IPictureDisp GetImageRecolorButtonImage(Office.IRibbonControl control)
+        {
+            EnsureBrandImages();
+            return imageRecolorButtonImage ?? brandImageLarge ?? brandImageSmall;
+        }
+
+        public stdole.IPictureDisp GetPageButtonImage(Office.IRibbonControl control)
+        {
+            if (control != null && string.Equals(control.Id, "BtnPageUp", StringComparison.Ordinal))
+            {
+                if (pageUpButtonImage == null)
+                {
+                    pageUpButtonImage = CreateSvgChevronButtonImage(true);
+                }
+                return pageUpButtonImage ?? brandImageSmall ?? brandImageLarge;
+            }
+
+            if (pageDownButtonImage == null)
+            {
+                pageDownButtonImage = CreateSvgChevronButtonImage(false);
+            }
+            return pageDownButtonImage ?? brandImageSmall ?? brandImageLarge;
+        }
+
+        private static stdole.IPictureDisp CreateSvgChevronButtonImage(bool isDown)
+        {
+            const int size = 32;
+            const float scale = size / 24f;
+            var bmp = new Bitmap(size, size);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+                using (var pen = new Pen(Color.FromArgb(64, 64, 64), 2f))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    pen.LineJoin = LineJoin.Round;
+                    PointF p1;
+                    PointF p2;
+                    PointF p3;
+                    if (isDown)
+                    {
+                        p1 = new PointF(4.5f * scale, 15.75f * scale);
+                        p2 = new PointF(12f * scale, 8.25f * scale);
+                        p3 = new PointF(19.5f * scale, 15.75f * scale);
+                    }
+                    else
+                    {
+                        p1 = new PointF(4.5f * scale, 8.25f * scale);
+                        p2 = new PointF(12f * scale, 15.75f * scale);
+                        p3 = new PointF(19.5f * scale, 8.25f * scale);
+                    }
+                    g.DrawLines(pen, new[] { p1, p2, p3 });
+                }
+            }
+            return PictureConverter.ToPictureDisp(bmp);
+        }
+
         public int GetLevel1Count(Office.IRibbonControl control)
         {
             return GetLevel1List().Count;
@@ -356,6 +449,17 @@ namespace BioDraw
             return NormalizeIndex(selectedLevel1Index, list.Count);
         }
 
+        public string GetLevel1Text(Office.IRibbonControl control)
+        {
+            var list = GetLevel1List();
+            if (list.Count == 0)
+            {
+                return string.Empty;
+            }
+            var index = NormalizeIndex(selectedLevel1Index, list.Count);
+            return list[index];
+        }
+
         public void OnLevel1Changed(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var list = GetLevel1List();
@@ -364,6 +468,17 @@ namespace BioDraw
             materialPageIndex = 0;
             ribbon?.InvalidateControl("DdLevel2");
             InvalidateMaterialPreview();
+        }
+
+        public void OnLevel1TextChanged(Office.IRibbonControl control, string text)
+        {
+            var list = GetLevel1List();
+            var index = FindExactMatchIndex(list, text);
+            if (index < 0)
+            {
+                return;
+            }
+            OnLevel1Changed(control, string.Empty, index);
         }
 
         public int GetLevel2Count(Office.IRibbonControl control)
@@ -384,12 +499,34 @@ namespace BioDraw
             return NormalizeIndex(selectedLevel2Index, list.Count);
         }
 
+        public string GetLevel2Text(Office.IRibbonControl control)
+        {
+            var list = GetLevel2List();
+            if (list.Count == 0)
+            {
+                return string.Empty;
+            }
+            var index = NormalizeIndex(selectedLevel2Index, list.Count);
+            return list[index];
+        }
+
         public void OnLevel2Changed(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var list = GetLevel2List();
             selectedLevel2Index = NormalizeIndex(selectedIndex, list.Count);
             materialPageIndex = 0;
             InvalidateMaterialPreview();
+        }
+
+        public void OnLevel2TextChanged(Office.IRibbonControl control, string text)
+        {
+            var list = GetLevel2List();
+            var index = FindExactMatchIndex(list, text);
+            if (index < 0)
+            {
+                return;
+            }
+            OnLevel2Changed(control, string.Empty, index);
         }
 
         public string GetMaterialSearchText(Office.IRibbonControl control)
@@ -430,6 +567,18 @@ namespace BioDraw
             InvalidateMaterialPreview();
         }
 
+        private int GetMaterialPageSize()
+        {
+            return Math.Max(1, Math.Min(MaterialPreviewButtonCount, materialPreviewCount));
+        }
+
+        private void EnsureMaterialPageIndexRange(List<MaterialEntry> list)
+        {
+            var pageSize = GetMaterialPageSize();
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)list.Count / pageSize));
+            materialPageIndex = Math.Max(0, Math.Min(materialPageIndex, totalPages - 1));
+        }
+
         private void InvalidateMaterialPreview()
         {
             if (ribbon == null) return;
@@ -439,6 +588,20 @@ namespace BioDraw
             ribbon.InvalidateControl("BtnMaterial4");
             ribbon.InvalidateControl("BtnMaterial5");
             ribbon.InvalidateControl("BtnMaterial6");
+            ribbon.InvalidateControl("BtnMaterial7");
+            ribbon.InvalidateControl("BtnMaterial8");
+            ribbon.InvalidateControl("BtnMaterial9");
+            ribbon.InvalidateControl("BtnMaterial10");
+            ribbon.InvalidateControl("BtnMaterial11");
+            ribbon.InvalidateControl("BtnMaterial12");
+            ribbon.InvalidateControl("BtnMaterial13");
+            ribbon.InvalidateControl("BtnMaterial14");
+            ribbon.InvalidateControl("BtnMaterial15");
+            ribbon.InvalidateControl("BtnMaterial16");
+            ribbon.InvalidateControl("BtnMaterial17");
+            ribbon.InvalidateControl("BtnMaterial18");
+            ribbon.InvalidateControl("BtnMaterial19");
+            ribbon.InvalidateControl("BtnMaterial20");
             ribbon.InvalidateControl("BtnPageUp");
             ribbon.InvalidateControl("BtnPageDown");
         }
@@ -446,7 +609,13 @@ namespace BioDraw
         private MaterialEntry GetMaterialEntryForButton(int buttonOffset)
         {
             var list = GetMaterialEntries();
-            int index = materialPageIndex * MaterialPageSize + buttonOffset;
+            var pageSize = GetMaterialPageSize();
+            EnsureMaterialPageIndexRange(list);
+            if (buttonOffset < 0 || buttonOffset >= pageSize)
+            {
+                return null;
+            }
+            int index = materialPageIndex * pageSize + buttonOffset;
             if (index >= 0 && index < list.Count)
             {
                 return list[index];
@@ -454,12 +623,52 @@ namespace BioDraw
             return null;
         }
 
+        private bool IsMaterialButtonVisible(int buttonOffset)
+        {
+            return buttonOffset >= 0 && buttonOffset < GetMaterialPageSize();
+        }
+
+        public bool GetMaterialVisible1(Office.IRibbonControl control) { return IsMaterialButtonVisible(0); }
+        public bool GetMaterialVisible2(Office.IRibbonControl control) { return IsMaterialButtonVisible(1); }
+        public bool GetMaterialVisible3(Office.IRibbonControl control) { return IsMaterialButtonVisible(2); }
+        public bool GetMaterialVisible4(Office.IRibbonControl control) { return IsMaterialButtonVisible(3); }
+        public bool GetMaterialVisible5(Office.IRibbonControl control) { return IsMaterialButtonVisible(4); }
+        public bool GetMaterialVisible6(Office.IRibbonControl control) { return IsMaterialButtonVisible(5); }
+        public bool GetMaterialVisible7(Office.IRibbonControl control) { return IsMaterialButtonVisible(6); }
+        public bool GetMaterialVisible8(Office.IRibbonControl control) { return IsMaterialButtonVisible(7); }
+        public bool GetMaterialVisible9(Office.IRibbonControl control) { return IsMaterialButtonVisible(8); }
+        public bool GetMaterialVisible10(Office.IRibbonControl control) { return IsMaterialButtonVisible(9); }
+        public bool GetMaterialVisible11(Office.IRibbonControl control) { return IsMaterialButtonVisible(10); }
+        public bool GetMaterialVisible12(Office.IRibbonControl control) { return IsMaterialButtonVisible(11); }
+        public bool GetMaterialVisible13(Office.IRibbonControl control) { return IsMaterialButtonVisible(12); }
+        public bool GetMaterialVisible14(Office.IRibbonControl control) { return IsMaterialButtonVisible(13); }
+        public bool GetMaterialVisible15(Office.IRibbonControl control) { return IsMaterialButtonVisible(14); }
+        public bool GetMaterialVisible16(Office.IRibbonControl control) { return IsMaterialButtonVisible(15); }
+        public bool GetMaterialVisible17(Office.IRibbonControl control) { return IsMaterialButtonVisible(16); }
+        public bool GetMaterialVisible18(Office.IRibbonControl control) { return IsMaterialButtonVisible(17); }
+        public bool GetMaterialVisible19(Office.IRibbonControl control) { return IsMaterialButtonVisible(18); }
+        public bool GetMaterialVisible20(Office.IRibbonControl control) { return IsMaterialButtonVisible(19); }
+
         public bool GetMaterialEnabled1(Office.IRibbonControl control) { return GetMaterialEntryForButton(0) != null; }
         public bool GetMaterialEnabled2(Office.IRibbonControl control) { return GetMaterialEntryForButton(1) != null; }
         public bool GetMaterialEnabled3(Office.IRibbonControl control) { return GetMaterialEntryForButton(2) != null; }
         public bool GetMaterialEnabled4(Office.IRibbonControl control) { return GetMaterialEntryForButton(3) != null; }
         public bool GetMaterialEnabled5(Office.IRibbonControl control) { return GetMaterialEntryForButton(4) != null; }
         public bool GetMaterialEnabled6(Office.IRibbonControl control) { return GetMaterialEntryForButton(5) != null; }
+        public bool GetMaterialEnabled7(Office.IRibbonControl control) { return GetMaterialEntryForButton(6) != null; }
+        public bool GetMaterialEnabled8(Office.IRibbonControl control) { return GetMaterialEntryForButton(7) != null; }
+        public bool GetMaterialEnabled9(Office.IRibbonControl control) { return GetMaterialEntryForButton(8) != null; }
+        public bool GetMaterialEnabled10(Office.IRibbonControl control) { return GetMaterialEntryForButton(9) != null; }
+        public bool GetMaterialEnabled11(Office.IRibbonControl control) { return GetMaterialEntryForButton(10) != null; }
+        public bool GetMaterialEnabled12(Office.IRibbonControl control) { return GetMaterialEntryForButton(11) != null; }
+        public bool GetMaterialEnabled13(Office.IRibbonControl control) { return GetMaterialEntryForButton(12) != null; }
+        public bool GetMaterialEnabled14(Office.IRibbonControl control) { return GetMaterialEntryForButton(13) != null; }
+        public bool GetMaterialEnabled15(Office.IRibbonControl control) { return GetMaterialEntryForButton(14) != null; }
+        public bool GetMaterialEnabled16(Office.IRibbonControl control) { return GetMaterialEntryForButton(15) != null; }
+        public bool GetMaterialEnabled17(Office.IRibbonControl control) { return GetMaterialEntryForButton(16) != null; }
+        public bool GetMaterialEnabled18(Office.IRibbonControl control) { return GetMaterialEntryForButton(17) != null; }
+        public bool GetMaterialEnabled19(Office.IRibbonControl control) { return GetMaterialEntryForButton(18) != null; }
+        public bool GetMaterialEnabled20(Office.IRibbonControl control) { return GetMaterialEntryForButton(19) != null; }
 
         public string GetMaterialLabel1(Office.IRibbonControl control) { return GetMaterialDisplayLabel(0); }
         public string GetMaterialLabel2(Office.IRibbonControl control) { return GetMaterialDisplayLabel(1); }
@@ -467,6 +676,20 @@ namespace BioDraw
         public string GetMaterialLabel4(Office.IRibbonControl control) { return GetMaterialDisplayLabel(3); }
         public string GetMaterialLabel5(Office.IRibbonControl control) { return GetMaterialDisplayLabel(4); }
         public string GetMaterialLabel6(Office.IRibbonControl control) { return GetMaterialDisplayLabel(5); }
+        public string GetMaterialLabel7(Office.IRibbonControl control) { return GetMaterialDisplayLabel(6); }
+        public string GetMaterialLabel8(Office.IRibbonControl control) { return GetMaterialDisplayLabel(7); }
+        public string GetMaterialLabel9(Office.IRibbonControl control) { return GetMaterialDisplayLabel(8); }
+        public string GetMaterialLabel10(Office.IRibbonControl control) { return GetMaterialDisplayLabel(9); }
+        public string GetMaterialLabel11(Office.IRibbonControl control) { return GetMaterialDisplayLabel(10); }
+        public string GetMaterialLabel12(Office.IRibbonControl control) { return GetMaterialDisplayLabel(11); }
+        public string GetMaterialLabel13(Office.IRibbonControl control) { return GetMaterialDisplayLabel(12); }
+        public string GetMaterialLabel14(Office.IRibbonControl control) { return GetMaterialDisplayLabel(13); }
+        public string GetMaterialLabel15(Office.IRibbonControl control) { return GetMaterialDisplayLabel(14); }
+        public string GetMaterialLabel16(Office.IRibbonControl control) { return GetMaterialDisplayLabel(15); }
+        public string GetMaterialLabel17(Office.IRibbonControl control) { return GetMaterialDisplayLabel(16); }
+        public string GetMaterialLabel18(Office.IRibbonControl control) { return GetMaterialDisplayLabel(17); }
+        public string GetMaterialLabel19(Office.IRibbonControl control) { return GetMaterialDisplayLabel(18); }
+        public string GetMaterialLabel20(Office.IRibbonControl control) { return GetMaterialDisplayLabel(19); }
 
         public string GetMaterialScreentip1(Office.IRibbonControl control) { return GetMaterialTooltip(0); }
         public string GetMaterialScreentip2(Office.IRibbonControl control) { return GetMaterialTooltip(1); }
@@ -474,6 +697,20 @@ namespace BioDraw
         public string GetMaterialScreentip4(Office.IRibbonControl control) { return GetMaterialTooltip(3); }
         public string GetMaterialScreentip5(Office.IRibbonControl control) { return GetMaterialTooltip(4); }
         public string GetMaterialScreentip6(Office.IRibbonControl control) { return GetMaterialTooltip(5); }
+        public string GetMaterialScreentip7(Office.IRibbonControl control) { return GetMaterialTooltip(6); }
+        public string GetMaterialScreentip8(Office.IRibbonControl control) { return GetMaterialTooltip(7); }
+        public string GetMaterialScreentip9(Office.IRibbonControl control) { return GetMaterialTooltip(8); }
+        public string GetMaterialScreentip10(Office.IRibbonControl control) { return GetMaterialTooltip(9); }
+        public string GetMaterialScreentip11(Office.IRibbonControl control) { return GetMaterialTooltip(10); }
+        public string GetMaterialScreentip12(Office.IRibbonControl control) { return GetMaterialTooltip(11); }
+        public string GetMaterialScreentip13(Office.IRibbonControl control) { return GetMaterialTooltip(12); }
+        public string GetMaterialScreentip14(Office.IRibbonControl control) { return GetMaterialTooltip(13); }
+        public string GetMaterialScreentip15(Office.IRibbonControl control) { return GetMaterialTooltip(14); }
+        public string GetMaterialScreentip16(Office.IRibbonControl control) { return GetMaterialTooltip(15); }
+        public string GetMaterialScreentip17(Office.IRibbonControl control) { return GetMaterialTooltip(16); }
+        public string GetMaterialScreentip18(Office.IRibbonControl control) { return GetMaterialTooltip(17); }
+        public string GetMaterialScreentip19(Office.IRibbonControl control) { return GetMaterialTooltip(18); }
+        public string GetMaterialScreentip20(Office.IRibbonControl control) { return GetMaterialTooltip(19); }
 
         public stdole.IPictureDisp GetMaterialImage1(Office.IRibbonControl control) { return GetMaterialImageForButton(0); }
         public stdole.IPictureDisp GetMaterialImage2(Office.IRibbonControl control) { return GetMaterialImageForButton(1); }
@@ -481,18 +718,25 @@ namespace BioDraw
         public stdole.IPictureDisp GetMaterialImage4(Office.IRibbonControl control) { return GetMaterialImageForButton(3); }
         public stdole.IPictureDisp GetMaterialImage5(Office.IRibbonControl control) { return GetMaterialImageForButton(4); }
         public stdole.IPictureDisp GetMaterialImage6(Office.IRibbonControl control) { return GetMaterialImageForButton(5); }
+        public stdole.IPictureDisp GetMaterialImage7(Office.IRibbonControl control) { return GetMaterialImageForButton(6); }
+        public stdole.IPictureDisp GetMaterialImage8(Office.IRibbonControl control) { return GetMaterialImageForButton(7); }
+        public stdole.IPictureDisp GetMaterialImage9(Office.IRibbonControl control) { return GetMaterialImageForButton(8); }
+        public stdole.IPictureDisp GetMaterialImage10(Office.IRibbonControl control) { return GetMaterialImageForButton(9); }
+        public stdole.IPictureDisp GetMaterialImage11(Office.IRibbonControl control) { return GetMaterialImageForButton(10); }
+        public stdole.IPictureDisp GetMaterialImage12(Office.IRibbonControl control) { return GetMaterialImageForButton(11); }
+        public stdole.IPictureDisp GetMaterialImage13(Office.IRibbonControl control) { return GetMaterialImageForButton(12); }
+        public stdole.IPictureDisp GetMaterialImage14(Office.IRibbonControl control) { return GetMaterialImageForButton(13); }
+        public stdole.IPictureDisp GetMaterialImage15(Office.IRibbonControl control) { return GetMaterialImageForButton(14); }
+        public stdole.IPictureDisp GetMaterialImage16(Office.IRibbonControl control) { return GetMaterialImageForButton(15); }
+        public stdole.IPictureDisp GetMaterialImage17(Office.IRibbonControl control) { return GetMaterialImageForButton(16); }
+        public stdole.IPictureDisp GetMaterialImage18(Office.IRibbonControl control) { return GetMaterialImageForButton(17); }
+        public stdole.IPictureDisp GetMaterialImage19(Office.IRibbonControl control) { return GetMaterialImageForButton(18); }
+        public stdole.IPictureDisp GetMaterialImage20(Office.IRibbonControl control) { return GetMaterialImageForButton(19); }
 
         private string GetMaterialDisplayLabel(int buttonOffset)
         {
-            var maxWidth = GetMaterialLabelMaxWidth();
             var item = GetMaterialEntryForButton(buttonOffset);
-            if (item == null || string.IsNullOrWhiteSpace(item.Name))
-            {
-                return BuildInvisibleFixedWidthLabel(maxWidth);
-            }
-
-            var label = ToEllipsisLabel(item.Name.Trim(), maxWidth, MaterialLabelMaxLines);
-            return NormalizeLabelForFixedButtonWidth(label, maxWidth);
+            return ToFixedLengthMaterialLabel(item == null ? string.Empty : item.Name);
         }
 
         private string GetMaterialTooltip(int buttonOffset)
@@ -530,9 +774,59 @@ namespace BioDraw
             return title + " (" + fileName + ")";
         }
 
-        private static int GetMaterialLabelMaxWidth()
+
+
+        private static int GetDisplayLength(string text)
         {
-            return Math.Max(28, (int)Math.Floor(MaterialThumbnailWidth * MaterialLabelWidthRatio));
+            int len = 0;
+            foreach (char c in text)
+            {
+                len += c > 255 ? 2 : 1;
+            }
+            return len;
+        }
+
+        private static string ToFixedLengthMaterialLabel(string text)
+        {
+            const int maxVisibleLength = 16;
+            const int totalLength = 20;
+            const char padChar = '\u00A0';
+
+            var normalized = (text ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return new string(padChar, totalLength);
+            }
+
+            string label = "";
+            int currentLen = 0;
+            bool truncated = false;
+
+            foreach (char c in normalized)
+            {
+                int charLen = c > 255 ? 2 : 1;
+                if (currentLen + charLen > maxVisibleLength)
+                {
+                    truncated = true;
+                    break;
+                }
+                label += c;
+                currentLen += charLen;
+            }
+
+            if (truncated)
+            {
+                label += "…";
+                currentLen += 2; // '…' is usually full-width
+            }
+
+            int padCount = totalLength - currentLen;
+            if (padCount > 0)
+            {
+                label += new string(padChar, padCount);
+            }
+
+            return label;
         }
 
         private static string ToEllipsisLabel(string text, int maxWidthPixels, int maxLines)
@@ -649,161 +943,6 @@ namespace BioDraw
             return "…";
         }
 
-        private static string NormalizeLabelForFixedButtonWidth(string label, int targetWidthPixels)
-        {
-            if (label == null)
-            {
-                return BuildInvisibleFixedWidthLabel(targetWidthPixels);
-            }
-
-            if (targetWidthPixels <= 8)
-            {
-                return label;
-            }
-
-            if (label.Length == 0)
-            {
-                return BuildInvisibleFixedWidthLabel(targetWidthPixels);
-            }
-
-            var lines = label.Split(new[] { '\n' }, StringSplitOptions.None);
-            using (var font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point))
-            {
-                const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
-                for (int index = 0; index < lines.Length; index++)
-                {
-                    lines[index] = CenterLineToWidth(lines[index], targetWidthPixels, font, flags);
-                }
-            }
-
-            return string.Join("\n", lines);
-        }
-
-        private static string BuildInvisibleFixedWidthLabel(int targetWidthPixels)
-        {
-            if (targetWidthPixels <= 8)
-            {
-                return "\u3164";
-            }
-
-            const string filler = "\u3164";
-            using (var font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point))
-            {
-                const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
-                var line = filler;
-                for (int count = 0; count < 256; count++)
-                {
-                    if (MeasureTextWidth(line, font, flags) >= targetWidthPixels)
-                    {
-                        return line;
-                    }
-
-                    line += filler;
-                }
-
-                return line;
-            }
-        }
-
-        private static string CenterLineToWidth(string line, int targetWidthPixels, Font font, TextFormatFlags flags)
-        {
-            var content = line ?? string.Empty;
-            if (MeasureTextWidth(content, font, flags) >= targetWidthPixels)
-            {
-                return content;
-            }
-
-            const string widthPadChar = "\u2800";
-            string bestCandidate = content;
-            var bestCenterDelta = int.MaxValue;
-            var bestWidthDelta = int.MaxValue;
-            var bestMeetsWidth = false;
-            for (int totalPadCount = 1; totalPadCount <= 128; totalPadCount++)
-            {
-                var leftCountA = totalPadCount / 2;
-                var rightCountA = totalPadCount - leftCountA;
-                var leftCountB = rightCountA;
-                var rightCountB = leftCountA;
-
-                var candidateA = BuildCenteredCandidate(content, widthPadChar, leftCountA, rightCountA);
-                EvaluateCenteredCandidate(candidateA, targetWidthPixels, font, flags, ref bestCandidate, ref bestCenterDelta, ref bestWidthDelta, ref bestMeetsWidth);
-
-                if (leftCountA != leftCountB)
-                {
-                    var candidateB = BuildCenteredCandidate(content, widthPadChar, leftCountB, rightCountB);
-                    EvaluateCenteredCandidate(candidateB, targetWidthPixels, font, flags, ref bestCandidate, ref bestCenterDelta, ref bestWidthDelta, ref bestMeetsWidth);
-                }
-
-                if (bestMeetsWidth && bestCenterDelta == 0)
-                {
-                    break;
-                }
-            }
-
-            return bestCandidate;
-        }
-
-        private static string BuildCenteredCandidate(string content, string widthPadChar, int leftCount, int rightCount)
-        {
-            var leftPad = string.Concat(Enumerable.Repeat(widthPadChar, Math.Max(0, leftCount)));
-            var rightPad = string.Concat(Enumerable.Repeat(widthPadChar, Math.Max(0, rightCount)));
-            return leftPad + content + rightPad;
-        }
-
-        private static void EvaluateCenteredCandidate(
-            string candidate,
-            int targetWidthPixels,
-            Font font,
-            TextFormatFlags flags,
-            ref string bestCandidate,
-            ref int bestCenterDelta,
-            ref int bestWidthDelta,
-            ref bool bestMeetsWidth)
-        {
-            var totalWidth = MeasureTextWidth(candidate, font, flags);
-            var leftIndex = 0;
-            var rightIndex = candidate.Length;
-            while (leftIndex < rightIndex && candidate[leftIndex] == '\u2800') leftIndex++;
-            while (rightIndex > leftIndex && candidate[rightIndex - 1] == '\u2800') rightIndex--;
-
-            var leftPad = candidate.Substring(0, leftIndex);
-            var rightPad = candidate.Substring(rightIndex);
-            var leftWidth = MeasureTextWidth(leftPad, font, flags);
-            var rightWidth = MeasureTextWidth(rightPad, font, flags);
-            var centerDelta = Math.Abs(leftWidth - rightWidth);
-            var widthDelta = Math.Abs(totalWidth - targetWidthPixels);
-            var meetsWidth = totalWidth >= targetWidthPixels;
-
-            if (bestCandidate == null)
-            {
-                bestCandidate = candidate;
-                bestCenterDelta = centerDelta;
-                bestWidthDelta = widthDelta;
-                bestMeetsWidth = meetsWidth;
-                return;
-            }
-
-            if (bestMeetsWidth != meetsWidth)
-            {
-                if (meetsWidth)
-                {
-                    bestCandidate = candidate;
-                    bestCenterDelta = centerDelta;
-                    bestWidthDelta = widthDelta;
-                    bestMeetsWidth = true;
-                }
-                return;
-            }
-
-            if (centerDelta < bestCenterDelta || (centerDelta == bestCenterDelta && widthDelta < bestWidthDelta))
-            {
-                bestCandidate = candidate;
-                bestCenterDelta = centerDelta;
-                bestWidthDelta = widthDelta;
-                bestMeetsWidth = meetsWidth;
-            }
-        }
-
         private stdole.IPictureDisp GetMaterialImageForButton(int buttonOffset)
         {
             EnsureBrandImages();
@@ -818,6 +957,20 @@ namespace BioDraw
         public void OnMaterialClick4(Office.IRibbonControl control) { InsertMaterialAtOffset(3); }
         public void OnMaterialClick5(Office.IRibbonControl control) { InsertMaterialAtOffset(4); }
         public void OnMaterialClick6(Office.IRibbonControl control) { InsertMaterialAtOffset(5); }
+        public void OnMaterialClick7(Office.IRibbonControl control) { InsertMaterialAtOffset(6); }
+        public void OnMaterialClick8(Office.IRibbonControl control) { InsertMaterialAtOffset(7); }
+        public void OnMaterialClick9(Office.IRibbonControl control) { InsertMaterialAtOffset(8); }
+        public void OnMaterialClick10(Office.IRibbonControl control) { InsertMaterialAtOffset(9); }
+        public void OnMaterialClick11(Office.IRibbonControl control) { InsertMaterialAtOffset(10); }
+        public void OnMaterialClick12(Office.IRibbonControl control) { InsertMaterialAtOffset(11); }
+        public void OnMaterialClick13(Office.IRibbonControl control) { InsertMaterialAtOffset(12); }
+        public void OnMaterialClick14(Office.IRibbonControl control) { InsertMaterialAtOffset(13); }
+        public void OnMaterialClick15(Office.IRibbonControl control) { InsertMaterialAtOffset(14); }
+        public void OnMaterialClick16(Office.IRibbonControl control) { InsertMaterialAtOffset(15); }
+        public void OnMaterialClick17(Office.IRibbonControl control) { InsertMaterialAtOffset(16); }
+        public void OnMaterialClick18(Office.IRibbonControl control) { InsertMaterialAtOffset(17); }
+        public void OnMaterialClick19(Office.IRibbonControl control) { InsertMaterialAtOffset(18); }
+        public void OnMaterialClick20(Office.IRibbonControl control) { InsertMaterialAtOffset(19); }
 
         private void InsertMaterialAtOffset(int buttonOffset)
         {
@@ -838,11 +991,160 @@ namespace BioDraw
         public void OnMaterialPageDown(Office.IRibbonControl control)
         {
             var list = GetMaterialEntries();
-            int totalPages = (int)Math.Ceiling((double)list.Count / MaterialPageSize);
+            var pageSize = GetMaterialPageSize();
+            int totalPages = (int)Math.Ceiling((double)list.Count / pageSize);
             if (materialPageIndex < totalPages - 1)
             {
                 materialPageIndex++;
                 InvalidateMaterialPreview();
+            }
+        }
+
+        public void OnEditMaterialPreviewSettings(Office.IRibbonControl control)
+        {
+            int newCount;
+            if (!ShowMaterialPreviewSettingsDialog(out newCount))
+            {
+                return;
+            }
+
+            materialPreviewCount = Math.Max(1, Math.Min(MaterialPreviewButtonCount, newCount));
+            materialPageIndex = 0;
+            SaveImageReplacePresets();
+            InvalidateMaterialPreview();
+        }
+
+        private bool ShowMaterialPreviewSettingsDialog(out int newCount)
+        {
+            newCount = GetMaterialPageSize();
+            using (var form = new Form())
+            using (var lblPreviewCount = new Label())
+            using (var numPreviewCount = new NumericUpDown())
+            using (var tbPreviewCount = new TrackBar())
+            using (var btnOk = new Button())
+            {
+                form.Text = "预览设置";
+                form.FormBorderStyle = FormBorderStyle.Sizable;
+                form.StartPosition = FormStartPosition.CenterScreen;
+                form.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+                form.BackColor = Color.FromArgb(244, 247, 252);
+                form.ForeColor = Color.FromArgb(32, 41, 57);
+                form.AutoScaleMode = AutoScaleMode.Dpi;
+                form.MinimizeBox = false;
+                form.MaximizeBox = true;
+                form.MinimumSize = new Size(520, 240);
+                form.ClientSize = new Size(620, 280);
+
+                lblPreviewCount.Text = "素材数量";
+                lblPreviewCount.TextAlign = ContentAlignment.MiddleLeft;
+
+                numPreviewCount.Minimum = 1;
+                numPreviewCount.Maximum = MaterialPreviewButtonCount;
+                numPreviewCount.DecimalPlaces = 0;
+                numPreviewCount.Value = Convert.ToDecimal(GetMaterialPageSize(), CultureInfo.InvariantCulture);
+                numPreviewCount.BorderStyle = BorderStyle.FixedSingle;
+                numPreviewCount.TextAlign = HorizontalAlignment.Right;
+                numPreviewCount.BackColor = Color.White;
+                numPreviewCount.ForeColor = Color.FromArgb(32, 41, 57);
+
+                tbPreviewCount.Minimum = 1;
+                tbPreviewCount.Maximum = MaterialPreviewButtonCount;
+                tbPreviewCount.TickFrequency = 1;
+                tbPreviewCount.SmallChange = 1;
+                tbPreviewCount.LargeChange = 1;
+                tbPreviewCount.AutoSize = false;
+                tbPreviewCount.Value = Convert.ToInt32(numPreviewCount.Value, CultureInfo.InvariantCulture);
+
+                btnOk.Text = "保存";
+                btnOk.DialogResult = DialogResult.OK;
+                btnOk.FlatStyle = FlatStyle.Flat;
+                btnOk.FlatAppearance.BorderSize = 1;
+                btnOk.FlatAppearance.BorderColor = Color.FromArgb(24, 118, 242);
+                btnOk.BackColor = Color.FromArgb(24, 118, 242);
+                btnOk.ForeColor = Color.White;
+                btnOk.UseVisualStyleBackColor = false;
+                btnOk.Cursor = Cursors.Hand;
+
+                var syncingPreviewCount = false;
+                void SyncPreviewCountToTrackBar()
+                {
+                    if (syncingPreviewCount)
+                    {
+                        return;
+                    }
+                    syncingPreviewCount = true;
+                    var next = Convert.ToInt32(numPreviewCount.Value, CultureInfo.InvariantCulture);
+                    tbPreviewCount.Value = Math.Max(tbPreviewCount.Minimum, Math.Min(tbPreviewCount.Maximum, next));
+                    syncingPreviewCount = false;
+                }
+
+                void SyncPreviewCountToNumeric()
+                {
+                    if (syncingPreviewCount)
+                    {
+                        return;
+                    }
+                    syncingPreviewCount = true;
+                    numPreviewCount.Value = Convert.ToDecimal(tbPreviewCount.Value, CultureInfo.InvariantCulture);
+                    syncingPreviewCount = false;
+                }
+
+                numPreviewCount.ValueChanged += (_, __) => SyncPreviewCountToTrackBar();
+                tbPreviewCount.Scroll += (_, __) => SyncPreviewCountToNumeric();
+                tbPreviewCount.MouseEnter += (_, __) => tbPreviewCount.Focus();
+                tbPreviewCount.MouseWheel += (_, e) =>
+                {
+                    var delta = e.Delta > 0 ? 1 : -1;
+                    var next = Math.Max(tbPreviewCount.Minimum, Math.Min(tbPreviewCount.Maximum, tbPreviewCount.Value + delta));
+                    if (next == tbPreviewCount.Value)
+                    {
+                        return;
+                    }
+                    tbPreviewCount.Value = next;
+                    SyncPreviewCountToNumeric();
+                };
+
+                void ApplyDialogLayout()
+                {
+                    var margin = 24;
+                    var labelWidth = 160;
+                    var fieldGap = 12;
+                    var rowHeight = 40;
+                    var buttonWidth = 128;
+                    var buttonHeight = 40;
+
+                    var fieldX = margin + labelWidth + fieldGap;
+                    var rightEdge = form.ClientSize.Width - margin;
+                    var top = margin + 20;
+
+                    lblPreviewCount.Location = new Point(margin, top);
+                    lblPreviewCount.Size = new Size(labelWidth, rowHeight);
+                    numPreviewCount.Location = new Point(fieldX, top);
+                    numPreviewCount.Size = new Size(180, rowHeight);
+                    tbPreviewCount.Location = new Point(numPreviewCount.Right + 14, top + 4);
+                    tbPreviewCount.Size = new Size(Math.Max(220, rightEdge - tbPreviewCount.Left), rowHeight - 8);
+
+                    var bottomY = Math.Max(top + rowHeight + 24, form.ClientSize.Height - margin - buttonHeight);
+                    btnOk.Location = new Point(rightEdge - buttonWidth, bottomY);
+                    btnOk.Size = new Size(buttonWidth, buttonHeight);
+                    ApplyRoundedRegion(btnOk, 7);
+                }
+
+                form.Controls.Add(lblPreviewCount);
+                form.Controls.Add(numPreviewCount);
+                form.Controls.Add(tbPreviewCount);
+                form.Controls.Add(btnOk);
+                form.AcceptButton = btnOk;
+                form.Resize += (_, __) => ApplyDialogLayout();
+                ApplyDialogLayout();
+
+                if (form.ShowDialog() != DialogResult.OK)
+                {
+                    return false;
+                }
+
+                newCount = Convert.ToInt32(numPreviewCount.Value, CultureInfo.InvariantCulture);
+                return true;
             }
         }
 
@@ -944,25 +1246,117 @@ namespace BioDraw
         public string GetImageReplaceSourceColorText(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            return imageReplaceSourceColorInput;
+            return ToRibbonColorInputText(imageReplaceSourceColorInput);
+        }
+
+        public int GetImageReplaceSourceColorItemCount(Office.IRibbonControl control)
+        {
+            return imageReplaceSourceColorOptions.Count + 1;
+        }
+
+        public string GetImageReplaceSourceColorItemLabel(Office.IRibbonControl control, int index)
+        {
+            if (index == 0)
+            {
+                return RibbonEmptyInputToken;
+            }
+            int optIndex = index - 1;
+            if (optIndex >= 0 && optIndex < imageReplaceSourceColorOptions.Count)
+            {
+                return imageReplaceSourceColorOptions[optIndex];
+            }
+            return string.Empty;
+        }
+
+        public int GetImageReplaceSourceColorSelectedIndex(Office.IRibbonControl control)
+        {
+            EnsureImageReplaceInputValues();
+            var normalized = NormalizeColorInputText(imageReplaceSourceColorInput);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return 0;
+            }
+            int idx = FindColorOptionIndex(imageReplaceSourceColorOptions, normalized);
+            return idx >= 0 ? idx + 1 : -1;
         }
 
         public string GetImageReplaceNewColorText(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            return imageReplaceNewColorInput;
+            return ToRibbonColorInputText(imageReplaceNewColorInput);
+        }
+
+        public int GetImageReplaceNewColorItemCount(Office.IRibbonControl control)
+        {
+            return imageReplaceNewColorOptions.Count + 1;
+        }
+
+        public string GetImageReplaceNewColorItemLabel(Office.IRibbonControl control, int index)
+        {
+            if (index == 0)
+            {
+                return RibbonEmptyInputToken;
+            }
+            int optIndex = index - 1;
+            if (optIndex >= 0 && optIndex < imageReplaceNewColorOptions.Count)
+            {
+                return imageReplaceNewColorOptions[optIndex];
+            }
+            return string.Empty;
+        }
+
+        public int GetImageReplaceNewColorSelectedIndex(Office.IRibbonControl control)
+        {
+            EnsureImageReplaceInputValues();
+            var normalized = NormalizeColorInputText(imageReplaceNewColorInput);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return 0;
+            }
+            int idx = FindColorOptionIndex(imageReplaceNewColorOptions, normalized);
+            return idx >= 0 ? idx + 1 : -1;
         }
 
         public void OnImageReplaceSourceColorChanged(Office.IRibbonControl control, string text)
         {
-            imageReplaceSourceColorInput = (text ?? string.Empty).Trim();
+            imageReplaceSourceColorInput = ToStorageColorInputText(text);
             PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
         }
 
         public void OnImageReplaceNewColorChanged(Office.IRibbonControl control, string text)
         {
-            imageReplaceNewColorInput = (text ?? string.Empty).Trim();
+            imageReplaceNewColorInput = ToStorageColorInputText(text);
             PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceNewColor");
+        }
+
+        public void OnEditImageReplaceSourceColor(Office.IRibbonControl control)
+        {
+            EnsureImageReplaceInputValues();
+            string selectedColor;
+            if (!ShowColorOptionManagerDialog("原色预设", imageReplaceSourceColorOptions, imageReplaceSourceColorInput, false, out selectedColor))
+            {
+                return;
+            }
+
+            imageReplaceSourceColorInput = ToStorageColorInputText(selectedColor);
+            PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
+        }
+
+        public void OnEditImageReplaceNewColor(Office.IRibbonControl control)
+        {
+            EnsureImageReplaceInputValues();
+            string selectedColor;
+            if (!ShowColorOptionManagerDialog("新色预设", imageReplaceNewColorOptions, imageReplaceNewColorInput, true, out selectedColor))
+            {
+                return;
+            }
+
+            imageReplaceNewColorInput = ToStorageColorInputText(selectedColor);
+            PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
 
         public void OnPickImageReplaceSourceColor(Office.IRibbonControl control)
@@ -970,18 +1364,18 @@ namespace BioDraw
             EnsureImageReplaceInputValues();
             string colorToken;
             string errorMessage;
-            if (TryPickColorWithPowerPoint(false, imageReplaceSourceColorInput, out colorToken, out errorMessage))
+            if (!TryPickColorWithPowerPoint(false, imageReplaceSourceColorInput, out colorToken, out errorMessage))
             {
-                imageReplaceSourceColorInput = colorToken;
-                PersistImageReplaceInputMemory();
-                ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
+                if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    MessageBox.Show(errorMessage, "BioDraw");
+                }
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(errorMessage))
-            {
-                MessageBox.Show(errorMessage, "BioDraw");
-            }
+            imageReplaceSourceColorInput = ToStorageColorInputText(colorToken);
+            PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
         }
 
         public void OnPickImageReplaceNewColor(Office.IRibbonControl control)
@@ -989,18 +1383,18 @@ namespace BioDraw
             EnsureImageReplaceInputValues();
             string colorToken;
             string errorMessage;
-            if (TryPickColorWithPowerPoint(false, imageReplaceNewColorInput, out colorToken, out errorMessage))
+            if (!TryPickColorWithPowerPoint(false, imageReplaceNewColorInput, out colorToken, out errorMessage))
             {
-                imageReplaceNewColorInput = colorToken;
-                PersistImageReplaceInputMemory();
-                ribbon?.InvalidateControl("TxtImageReplaceNewColor");
+                if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    MessageBox.Show(errorMessage, "BioDraw");
+                }
                 return;
             }
 
-            if (!string.IsNullOrWhiteSpace(errorMessage))
-            {
-                MessageBox.Show(errorMessage, "BioDraw");
-            }
+            imageReplaceNewColorInput = ToStorageColorInputText(colorToken);
+            PersistImageReplaceInputMemory();
+            ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
 
         public int GetImageReplacePresetItemCount(Office.IRibbonControl control)
@@ -1029,6 +1423,21 @@ namespace BioDraw
             return currentIndex >= 0 ? currentIndex : 0;
         }
 
+        public string GetImageReplacePresetText(Office.IRibbonControl control)
+        {
+            var ordered = GetPresetsInDisplayOrder().ToList();
+            if (ordered.Count == 0)
+            {
+                return string.Empty;
+            }
+            var index = GetImageReplacePresetSelectedIndex(control);
+            if (index < 0 || index >= ordered.Count)
+            {
+                return ordered[0].Name;
+            }
+            return ordered[index].Name;
+        }
+
         public void OnImageReplacePresetDropDownChanged(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var ordered = GetPresetsInDisplayOrder().ToList();
@@ -1038,6 +1447,18 @@ namespace BioDraw
                 SyncImageReplaceInputValuesFromCurrentPreset();
                 InvalidateImageReplaceRibbonControls();
             }
+        }
+
+        public void OnImageReplacePresetTextChanged(Office.IRibbonControl control, string text)
+        {
+            var ordered = GetPresetsInDisplayOrder().ToList();
+            var names = ordered.Select(x => x.Name).ToList();
+            var index = FindExactMatchIndex(names, text);
+            if (index < 0)
+            {
+                return;
+            }
+            OnImageReplacePresetDropDownChanged(control, string.Empty, index);
         }
 
         public void OnApplyImageReplace(Office.IRibbonControl control)
@@ -1074,8 +1495,8 @@ namespace BioDraw
             }
 
             EnsureImageReplaceInputValues();
-            var sourceColor = imageReplaceSourceColorInput?.Trim();
-            var newColor = imageReplaceNewColorInput?.Trim();
+            var sourceColor = NormalizeColorInputText(imageReplaceSourceColorInput);
+            var newColor = NormalizeColorInputText(imageReplaceNewColorInput);
             if (string.IsNullOrWhiteSpace(sourceColor))
             {
                 MessageBox.Show("原色不能为空。", "BioDraw");
@@ -1146,9 +1567,9 @@ namespace BioDraw
                 preset = CreateDefaultPreset();
                 preset.Name = GenerateNewPresetName();
                 preset.SortOrder = Math.Max(1, imageReplacePresets.Count + 1);
-                preset.TargetColor = imageReplaceSourceColorInput ?? string.Empty;
-                preset.Mode = string.IsNullOrWhiteSpace(imageReplaceNewColorInput) ? "transparent" : "fill";
-                preset.ReplacementColor = string.IsNullOrWhiteSpace(imageReplaceNewColorInput) ? "black" : imageReplaceNewColorInput;
+                preset.TargetColor = NormalizeColorInputText(imageReplaceSourceColorInput);
+                preset.Mode = HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
+                preset.ReplacementColor = HasVisibleColorText(imageReplaceNewColorInput) ? NormalizeColorInputText(imageReplaceNewColorInput) : "black";
                 preset.FuzzPercent = NormalizeFuzzPercent(imageReplaceFuzzInput);
             }
 
@@ -1167,9 +1588,9 @@ namespace BioDraw
                 return;
             }
 
-            editedPreset.TargetColor = imageReplaceSourceColorInput?.Trim() ?? string.Empty;
-            editedPreset.Mode = string.IsNullOrWhiteSpace(imageReplaceNewColorInput) ? "transparent" : "fill";
-            editedPreset.ReplacementColor = string.IsNullOrWhiteSpace(imageReplaceNewColorInput) ? "black" : imageReplaceNewColorInput.Trim();
+            editedPreset.TargetColor = NormalizeColorInputText(imageReplaceSourceColorInput);
+            editedPreset.Mode = HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
+            editedPreset.ReplacementColor = HasVisibleColorText(imageReplaceNewColorInput) ? NormalizeColorInputText(imageReplaceNewColorInput) : "black";
             editedPreset.FuzzPercent = NormalizeFuzzPercent(editedPreset.FuzzPercent);
             imageReplaceFuzzInput = editedPreset.FuzzPercent;
             var isSameName = string.Equals(editedPreset.Name, preset.Name, StringComparison.OrdinalIgnoreCase);
@@ -1284,11 +1705,15 @@ namespace BioDraw
         {
             if (brandImageLarge == null)
             {
-                brandImageLarge = LoadEmbeddedPngAsPicture("BioDraw.BioDraw32.png", "BioDraw32.png");
+                var brandLargePath = ResolveBioDrawIconFilePath(BrandPngFileName);
+                brandImageLarge = LoadFileImageAsPicture(brandLargePath)
+                    ?? LoadEmbeddedPngAsPicture(BrandPngResourceName, BrandPngFileName);
             }
             if (brandImageSmall == null)
             {
-                brandImageSmall = LoadEmbeddedPngAsPicture("BioDraw.BioDraw16.png", "BioDraw16.png");
+                var brandSmallPath = ResolveBioDrawIconFilePath(BrandPngFileName);
+                brandImageSmall = LoadFileImageAsPicture(brandSmallPath)
+                    ?? LoadEmbeddedPngAsPicture(BrandPngResourceName, BrandPngFileName);
             }
             if (brandImageLarge == null)
             {
@@ -1301,6 +1726,25 @@ namespace BioDraw
             if (transparentPlaceholderImage == null)
             {
                 transparentPlaceholderImage = LoadEmbeddedPngAsPicture(TransparentPlaceholderResourceName, "blank-image-200x200.png");
+            }
+            if (pickerButtonImage == null)
+            {
+                var pickerFilePath = ResolveBioDrawIconFilePath(PickerColorFileName) ?? ResolveBioDrawIconFilePath(LegacyPickerColorFileName);
+                pickerButtonImage = LoadFileImageAsPicture(pickerFilePath)
+                    ?? LoadEmbeddedPngAsPicture(PickerColorResourceName, PickerColorFileName)
+                    ?? LoadEmbeddedPngAsPicture("BioDraw.BioDrawIcon.Picker_color .png", LegacyPickerColorFileName);
+            }
+            if (settingsButtonImage == null)
+            {
+                var settingsPngPath = ResolveBioDrawIconFilePath(SettingsGearPngFileName);
+                settingsButtonImage = LoadFileImageAsPicture(settingsPngPath)
+                    ?? LoadEmbeddedPngAsPicture(SettingsGearResourceName, SettingsGearPngFileName);
+            }
+            if (imageRecolorButtonImage == null)
+            {
+                var imageRecolorPath = ResolveBioDrawIconFilePath(ImageRecolorPngFileName);
+                imageRecolorButtonImage = LoadFileImageAsPicture(imageRecolorPath)
+                    ?? LoadEmbeddedPngAsPicture(ImageRecolorResourceName, ImageRecolorPngFileName);
             }
         }
 
@@ -1355,6 +1799,39 @@ namespace BioDraw
             }
         }
 
+        private static string ResolveBioDrawIconFilePath(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return null;
+            }
+
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            if (string.IsNullOrWhiteSpace(baseDir))
+            {
+                return null;
+            }
+
+            try
+            {
+                var current = new DirectoryInfo(baseDir);
+                for (int i = 0; i < 8 && current != null; i++)
+                {
+                    var candidate = Path.Combine(current.FullName, "BioDrawIcon", fileName);
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                    current = current.Parent;
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
         private sealed class PictureConverter : AxHost
         {
             private PictureConverter() : base("")
@@ -1398,12 +1875,7 @@ namespace BioDraw
 
         private void EnsureImageReplaceInputValues()
         {
-            if (!string.IsNullOrWhiteSpace(imageReplaceSourceColorInput))
-            {
-                return;
-            }
-
-            SyncImageReplaceInputValuesFromCurrentPreset();
+            EnsureImageReplaceColorOptions();
         }
 
         private void SyncImageReplaceInputValuesFromCurrentPreset()
@@ -1423,6 +1895,543 @@ namespace BioDraw
             }
 
             imageReplaceNewColorInput = string.Empty;
+        }
+
+        private void ResetImageReplaceColorOptions()
+        {
+            imageReplaceSourceColorOptions.Clear();
+            imageReplaceNewColorOptions.Clear();
+            AddColorOption(imageReplaceSourceColorOptions, "white");
+            AddColorOption(imageReplaceNewColorOptions, "white");
+        }
+
+        private static bool IsLegacyDefaultColorOption(string value)
+        {
+            return string.Equals(value, "white", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "black", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "red", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "blue", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "green", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void TrimLegacyDefaultColorOptions(List<string> options)
+        {
+            if (options == null || options.Count == 0)
+            {
+                return;
+            }
+
+            if (!options.All(IsLegacyDefaultColorOption))
+            {
+                return;
+            }
+
+            options.Clear();
+            options.Add("white");
+        }
+
+        private void EnsureImageReplaceColorOptions()
+        {
+            if (imageReplaceSourceColorOptions.Count == 0)
+            {
+                ResetImageReplaceColorOptions();
+            }
+        }
+
+        private static string NormalizeColorInputText(string text)
+        {
+            var normalized = (text ?? string.Empty).Trim();
+            if (string.Equals(normalized, RibbonEmptyInputToken, StringComparison.Ordinal))
+            {
+                return string.Empty;
+            }
+            return normalized;
+        }
+
+        private static string ToStorageColorInputText(string text)
+        {
+            var normalized = NormalizeColorInputText(text);
+            return string.IsNullOrEmpty(normalized) ? RibbonEmptyInputToken : normalized;
+        }
+
+        private static bool HasVisibleColorText(string text)
+        {
+            return !string.IsNullOrWhiteSpace(NormalizeColorInputText(text));
+        }
+
+        private static string ToRibbonColorInputText(string text)
+        {
+            return ToStorageColorInputText(text);
+        }
+
+        private static int FindColorOptionIndex(List<string> options, string value)
+        {
+            if (options == null || options.Count == 0 || string.IsNullOrWhiteSpace(value))
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < options.Count; i++)
+            {
+                if (string.Equals(options[i], value, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static int FindExactMatchIndex(List<string> options, string value)
+        {
+            return FindColorOptionIndex(options, value);
+        }
+
+        private static bool AddColorOption(List<string> options, string value)
+        {
+            if (options == null)
+            {
+                return false;
+            }
+
+            var normalized = (value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return false;
+            }
+
+            if (options.Any(x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            options.Add(normalized);
+            return true;
+        }
+
+        private static bool UpsertColorOptionAtPosition(List<string> options, string value, int oneBasedPosition)
+        {
+            if (options == null)
+            {
+                return false;
+            }
+
+            var normalized = (value ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return false;
+            }
+
+            var existingIndex = FindColorOptionIndex(options, normalized);
+            if (existingIndex >= 0)
+            {
+                options.RemoveAt(existingIndex);
+            }
+
+            var insertIndex = Math.Max(0, Math.Min(options.Count, oneBasedPosition - 1));
+            options.Insert(insertIndex, normalized);
+            return true;
+        }
+
+        private static bool RemoveColorOption(List<string> options, string value)
+        {
+            if (options == null || options.Count == 0 || string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var index = FindColorOptionIndex(options, value);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            options.RemoveAt(index);
+            return true;
+        }
+
+        private bool ShowColorOptionManagerDialog(string title, List<string> options, string currentValue, bool allowEmpty, out string selectedValue)
+        {
+            selectedValue = NormalizeColorInputText(currentValue);
+            if (options == null)
+            {
+                return false;
+            }
+            var dialogSelectedValue = selectedValue;
+            var currentNormalizedValue = NormalizeColorInputText(currentValue);
+            var latestCommittedValue = currentNormalizedValue;
+
+            using (var dialog = new Form())
+            using (var listBox = new ListBox())
+            using (var lblSortOrder = new Label())
+            using (var numSortOrder = new NumericUpDown())
+            using (var inputBox = new TextBox())
+            using (var pickButton = new Button())
+            using (var saveButton = new Button())
+            using (var deleteButton = new Button())
+            {
+                dialog.Text = title;
+                dialog.FormBorderStyle = FormBorderStyle.Sizable;
+                dialog.StartPosition = FormStartPosition.CenterScreen;
+                dialog.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+                dialog.BackColor = Color.FromArgb(244, 247, 252);
+                dialog.ForeColor = Color.FromArgb(32, 41, 57);
+                dialog.AutoScaleMode = AutoScaleMode.Dpi;
+                dialog.MinimizeBox = true;
+                dialog.MaximizeBox = true;
+                dialog.ShowInTaskbar = false;
+                dialog.MinimumSize = new Size(620, 280);
+                dialog.ClientSize = new Size(680, 300);
+
+                listBox.BorderStyle = BorderStyle.FixedSingle;
+                listBox.IntegralHeight = false;
+                listBox.BackColor = Color.White;
+                listBox.ForeColor = Color.FromArgb(32, 41, 57);
+                listBox.AllowDrop = true;
+
+                lblSortOrder.Text = "位置";
+                lblSortOrder.TextAlign = ContentAlignment.MiddleLeft;
+                lblSortOrder.ForeColor = Color.FromArgb(32, 41, 57);
+
+                numSortOrder.Minimum = 1;
+                numSortOrder.Maximum = Math.Max(1, options.Count + 1);
+                numSortOrder.DecimalPlaces = 0;
+                numSortOrder.TextAlign = HorizontalAlignment.Right;
+                numSortOrder.BorderStyle = BorderStyle.FixedSingle;
+                numSortOrder.BackColor = Color.White;
+                numSortOrder.ForeColor = Color.FromArgb(32, 41, 57);
+                numSortOrder.Value = 1;
+
+                inputBox.BorderStyle = BorderStyle.FixedSingle;
+                inputBox.BackColor = Color.White;
+                inputBox.ForeColor = Color.FromArgb(32, 41, 57);
+                inputBox.Text = selectedValue;
+
+                pickButton.Text = "取色";
+                saveButton.Text = "保存";
+                deleteButton.Text = "删除";
+
+                void StyleActionButton(Button button, bool primary, bool danger)
+                {
+                    button.FlatStyle = FlatStyle.Flat;
+                    button.FlatAppearance.BorderSize = 1;
+                    if (danger)
+                    {
+                        button.FlatAppearance.BorderColor = Color.FromArgb(220, 53, 69);
+                        button.BackColor = Color.FromArgb(220, 53, 69);
+                        button.ForeColor = Color.White;
+                    }
+                    else
+                    {
+                        button.FlatAppearance.BorderColor = primary ? Color.FromArgb(24, 118, 242) : Color.FromArgb(189, 198, 213);
+                        button.BackColor = primary ? Color.FromArgb(24, 118, 242) : Color.White;
+                        button.ForeColor = primary ? Color.White : Color.FromArgb(43, 52, 69);
+                    }
+                    button.UseVisualStyleBackColor = false;
+                    button.Cursor = Cursors.Hand;
+                }
+
+                StyleActionButton(pickButton, false, false);
+                StyleActionButton(saveButton, true, false);
+                StyleActionButton(deleteButton, false, true);
+
+                Action syncSortOrderMaximum = () =>
+                {
+                    numSortOrder.Maximum = Math.Max(1, options.Count + 1);
+                    if (numSortOrder.Value > numSortOrder.Maximum)
+                    {
+                        numSortOrder.Value = numSortOrder.Maximum;
+                    }
+                };
+
+                Action syncSortOrderFromInput = () =>
+                {
+                    var selected = (inputBox.Text ?? string.Empty).Trim();
+                    var index = FindColorOptionIndex(options, selected);
+                    if (index >= 0)
+                    {
+                        numSortOrder.Value = Math.Min(numSortOrder.Maximum, index + 1);
+                        return;
+                    }
+                    numSortOrder.Value = numSortOrder.Maximum;
+                };
+
+                Action refreshList = () =>
+                {
+                    var selected = (inputBox.Text ?? string.Empty).Trim();
+                    syncSortOrderMaximum();
+                    listBox.BeginUpdate();
+                    listBox.Items.Clear();
+                    foreach (var option in options)
+                    {
+                        listBox.Items.Add(option);
+                    }
+                    listBox.EndUpdate();
+                    var index = FindColorOptionIndex(options, selected);
+                    if (index >= 0)
+                    {
+                        listBox.SelectedIndex = index;
+                    }
+                    syncSortOrderFromInput();
+                };
+
+                var dragStartIndex = -1;
+                var dragStartPoint = Point.Empty;
+
+                listBox.SelectedIndexChanged += (sender, args) =>
+                {
+                    if (listBox.SelectedIndex >= 0 && listBox.SelectedIndex < listBox.Items.Count)
+                    {
+                        inputBox.Text = listBox.Items[listBox.SelectedIndex].ToString() ?? string.Empty;
+                        syncSortOrderFromInput();
+                    }
+                };
+
+                listBox.MouseDown += (sender, args) =>
+                {
+                    if (args.Button != MouseButtons.Left)
+                    {
+                        dragStartIndex = -1;
+                        return;
+                    }
+
+                    dragStartPoint = args.Location;
+                    dragStartIndex = listBox.IndexFromPoint(args.Location);
+                    if (dragStartIndex >= 0 && dragStartIndex < listBox.Items.Count)
+                    {
+                        listBox.SelectedIndex = dragStartIndex;
+                    }
+                };
+
+                listBox.MouseMove += (sender, args) =>
+                {
+                    if (args.Button != MouseButtons.Left || dragStartIndex < 0 || dragStartIndex >= listBox.Items.Count)
+                    {
+                        return;
+                    }
+
+                    var dragSize = SystemInformation.DragSize;
+                    var dragRect = new Rectangle(
+                        dragStartPoint.X - dragSize.Width / 2,
+                        dragStartPoint.Y - dragSize.Height / 2,
+                        dragSize.Width,
+                        dragSize.Height);
+                    if (dragRect.Contains(args.Location))
+                    {
+                        return;
+                    }
+
+                    var dragValue = listBox.Items[dragStartIndex].ToString() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(dragValue))
+                    {
+                        return;
+                    }
+
+                    listBox.DoDragDrop(dragValue, DragDropEffects.Move);
+                    dragStartIndex = -1;
+                };
+
+                listBox.DragOver += (sender, args) =>
+                {
+                    if (!args.Data.GetDataPresent(typeof(string)))
+                    {
+                        args.Effect = DragDropEffects.None;
+                        return;
+                    }
+                    args.Effect = DragDropEffects.Move;
+                };
+
+                listBox.DragDrop += (sender, args) =>
+                {
+                    if (!args.Data.GetDataPresent(typeof(string)))
+                    {
+                        return;
+                    }
+
+                    var draggedValue = args.Data.GetData(typeof(string)) as string ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(draggedValue))
+                    {
+                        return;
+                    }
+
+                    var sourceIndex = FindColorOptionIndex(options, draggedValue);
+                    if (sourceIndex < 0)
+                    {
+                        return;
+                    }
+
+                    var dropPoint = listBox.PointToClient(new Point(args.X, args.Y));
+                    int targetInsertIndex;
+                    if (dropPoint.Y < 0)
+                    {
+                        targetInsertIndex = 0;
+                    }
+                    else if (options.Count > 0 && dropPoint.Y > listBox.GetItemRectangle(options.Count - 1).Bottom)
+                    {
+                        targetInsertIndex = options.Count;
+                    }
+                    else
+                    {
+                        var targetIndex = listBox.IndexFromPoint(dropPoint);
+                        targetInsertIndex = targetIndex < 0 ? options.Count : targetIndex;
+                    }
+                    targetInsertIndex = Math.Max(0, Math.Min(targetInsertIndex, options.Count));
+
+                    if (targetInsertIndex == sourceIndex || targetInsertIndex == sourceIndex + 1)
+                    {
+                        return;
+                    }
+
+                    options.RemoveAt(sourceIndex);
+                    if (sourceIndex < targetInsertIndex)
+                    {
+                        targetInsertIndex--;
+                    }
+                    targetInsertIndex = Math.Max(0, Math.Min(targetInsertIndex, options.Count));
+                    options.Insert(targetInsertIndex, draggedValue);
+
+                    inputBox.Text = draggedValue;
+                    dialogSelectedValue = draggedValue;
+                    latestCommittedValue = draggedValue;
+                    refreshList();
+                    PersistImageReplaceInputMemory();
+                    InvalidateImageReplaceRibbonControls();
+                };
+
+                pickButton.Click += (sender, args) =>
+                {
+                    string colorToken;
+                    string errorMessage;
+                    if (TryPickColorWithPowerPoint(false, inputBox.Text, out colorToken, out errorMessage))
+                    {
+                        inputBox.Text = colorToken;
+                        return;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        MessageBox.Show(errorMessage, "BioDraw");
+                    }
+                };
+
+                saveButton.Click += (sender, args) =>
+                {
+                    var value = (inputBox.Text ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        return;
+                    }
+
+                    var position = Convert.ToInt32(numSortOrder.Value, CultureInfo.InvariantCulture);
+                    UpsertColorOptionAtPosition(options, value, position);
+                    inputBox.Text = value;
+                    dialogSelectedValue = value;
+                    latestCommittedValue = value;
+                    refreshList();
+                    PersistImageReplaceInputMemory();
+                    InvalidateImageReplaceRibbonControls();
+                };
+
+                deleteButton.Click += (sender, args) =>
+                {
+                    var value = (inputBox.Text ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        return;
+                    }
+
+                    if (!RemoveColorOption(options, value))
+                    {
+                        return;
+                    }
+
+                    if (string.Equals(currentNormalizedValue, value, StringComparison.OrdinalIgnoreCase))
+                    {
+                        dialogSelectedValue = allowEmpty ? string.Empty : (options.FirstOrDefault() ?? currentNormalizedValue);
+                    }
+                    else
+                    {
+                        dialogSelectedValue = currentNormalizedValue;
+                    }
+
+                    latestCommittedValue = dialogSelectedValue;
+                    inputBox.Text = dialogSelectedValue;
+                    refreshList();
+                    PersistImageReplaceInputMemory();
+                    InvalidateImageReplaceRibbonControls();
+                };
+
+                dialog.FormClosing += (sender, args) =>
+                {
+                    var value = (inputBox.Text ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        dialogSelectedValue = allowEmpty ? string.Empty : latestCommittedValue;
+                    }
+                    else
+                    {
+                        dialogSelectedValue = value;
+                    }
+                };
+
+                void ApplyDialogLayout()
+                {
+                    var margin = 24;
+                    var hGap = 16;
+                    var leftWidth = 180;
+                    var rightWidth = 300;
+                    var rightX = Math.Max(margin + leftWidth + hGap, dialog.ClientSize.Width - margin - rightWidth);
+                    var rowHeight = 40;
+                    var buttonGap = 10;
+                    var buttonWidth = (rightWidth - buttonGap) / 2;
+                    var pickWidth = 96;
+                    var inputWidth = Math.Max(96, rightWidth - pickWidth - buttonGap);
+                    var leftX = margin;
+                    var top = margin;
+                    var rowGap = 10;
+                    var saveDeleteY = dialog.ClientSize.Height - margin - rowHeight;
+
+                    listBox.Location = new Point(leftX, top);
+                    listBox.Size = new Size(leftWidth, Math.Max(120, saveDeleteY - top - buttonGap));
+
+                    inputBox.Location = new Point(rightX, top);
+                    inputBox.Size = new Size(inputWidth, rowHeight);
+
+                    pickButton.Location = new Point(inputBox.Right + buttonGap, top);
+                    pickButton.Size = new Size(pickWidth, rowHeight);
+
+                    var positionY = top + rowHeight + rowGap;
+                    lblSortOrder.Location = new Point(rightX, positionY);
+                    lblSortOrder.Size = new Size(120, rowHeight);
+                    numSortOrder.Location = new Point(lblSortOrder.Right + 12, positionY);
+                    numSortOrder.Size = new Size(120, rowHeight);
+
+                    saveButton.Location = new Point(rightX, saveDeleteY);
+                    saveButton.Size = new Size(buttonWidth, rowHeight);
+
+                    deleteButton.Location = new Point(saveButton.Right + buttonGap, saveDeleteY);
+                    deleteButton.Size = new Size(buttonWidth, rowHeight);
+
+                    ApplyRoundedRegion(pickButton, 7);
+                    ApplyRoundedRegion(saveButton, 7);
+                    ApplyRoundedRegion(deleteButton, 7);
+                }
+
+                dialog.Controls.Add(listBox);
+                dialog.Controls.Add(inputBox);
+                dialog.Controls.Add(pickButton);
+                dialog.Controls.Add(lblSortOrder);
+                dialog.Controls.Add(numSortOrder);
+                dialog.Controls.Add(saveButton);
+                dialog.Controls.Add(deleteButton);
+                dialog.Resize += (_, __) => ApplyDialogLayout();
+                ApplyDialogLayout();
+
+                EnsureImageReplaceColorOptions();
+                refreshList();
+                dialog.ShowDialog();
+                selectedValue = dialogSelectedValue;
+                return true;
+            }
         }
 
         private void PersistImageReplaceInputMemory()
@@ -1519,6 +2528,7 @@ namespace BioDraw
         private void LoadImageReplacePresets()
         {
             imageReplacePresets.Clear();
+            ResetImageReplaceColorOptions();
             defaultPresetName = string.Empty;
             currentPresetName = string.Empty;
             imageReplaceSourceColorInput = string.Empty;
@@ -1541,11 +2551,23 @@ namespace BioDraw
                 defaultPresetName = (string)root.Attribute("Default");
                 currentPresetName = (string)root.Attribute("Current");
                 materialLibraryPath = (string)root.Attribute("MaterialLibraryPath") ?? string.Empty;
-                imageReplaceSourceColorInput = (string)root.Attribute("ImageReplaceSourceInput") ?? string.Empty;
-                imageReplaceNewColorInput = (string)root.Attribute("ImageReplaceNewInput") ?? string.Empty;
                 imageReplaceFuzzInput = ParseFuzz((string)root.Attribute("ImageReplaceFuzzInput"));
+                materialPreviewCount = ParseMaterialPreviewCount((string)root.Attribute("MaterialPreviewCount"));
                 hasPresetEditorBounds = TryParseEditorBounds(root, out presetEditorBounds);
                 presetEditorSaveAsDefaultChecked = ParseBool((string)root.Attribute("EditorSaveAsDefault"));
+
+                foreach (var sourceOption in root.Elements("SourceColorOption"))
+                {
+                    AddColorOption(imageReplaceSourceColorOptions, (string)sourceOption.Attribute("Value"));
+                }
+
+                foreach (var newOption in root.Elements("NewColorOption"))
+                {
+                    AddColorOption(imageReplaceNewColorOptions, (string)newOption.Attribute("Value"));
+                }
+
+                TrimLegacyDefaultColorOptions(imageReplaceSourceColorOptions);
+                TrimLegacyDefaultColorOptions(imageReplaceNewColorOptions);
 
                 foreach (var xPreset in root.Elements("Preset"))
                 {
@@ -1573,8 +2595,11 @@ namespace BioDraw
 
             NormalizePresetSortOrders();
             EnsurePresetSelectionNames();
-            SyncImageReplaceInputValuesFromCurrentPreset();
+            imageReplaceSourceColorInput = string.Empty;
+            imageReplaceNewColorInput = string.Empty;
             imageReplaceFuzzInput = NormalizeFuzzPercent(imageReplaceFuzzInput);
+            materialPreviewCount = ParseMaterialPreviewCount(materialPreviewCount.ToString(CultureInfo.InvariantCulture));
+            EnsureImageReplaceColorOptions();
         }
 
         private void SaveImageReplacePresets()
@@ -1588,15 +2613,23 @@ namespace BioDraw
             NormalizePresetSortOrders();
             EnsurePresetSelectionNames();
             imageReplaceFuzzInput = NormalizeFuzzPercent(imageReplaceFuzzInput);
+            EnsureImageReplaceColorOptions();
             var root = new XElement(
                 "Presets",
                 new XAttribute("Default", defaultPresetName ?? string.Empty),
                 new XAttribute("Current", currentPresetName ?? string.Empty),
                 new XAttribute("MaterialLibraryPath", materialLibraryPath ?? string.Empty),
-                new XAttribute("ImageReplaceSourceInput", imageReplaceSourceColorInput ?? string.Empty),
-                new XAttribute("ImageReplaceNewInput", imageReplaceNewColorInput ?? string.Empty),
+                new XAttribute("MaterialPreviewCount", GetMaterialPageSize()),
+                new XAttribute("ImageReplaceSourceInput", NormalizeColorInputText(imageReplaceSourceColorInput)),
+                new XAttribute("ImageReplaceNewInput", NormalizeColorInputText(imageReplaceNewColorInput)),
                 new XAttribute("ImageReplaceFuzzInput", imageReplaceFuzzInput.ToString("0.0", CultureInfo.InvariantCulture)),
                 new XAttribute("EditorSaveAsDefault", presetEditorSaveAsDefaultChecked),
+                imageReplaceSourceColorOptions.Select(x => new XElement(
+                    "SourceColorOption",
+                    new XAttribute("Value", x))),
+                imageReplaceNewColorOptions.Select(x => new XElement(
+                    "NewColorOption",
+                    new XAttribute("Value", x))),
                 imageReplacePresets.Select(p => new XElement(
                     "Preset",
                     new XAttribute("Name", p.Name),
@@ -1639,6 +2672,16 @@ namespace BioDraw
                 return sortOrder;
             }
             return Math.Max(1, fallbackValue);
+        }
+
+        private static int ParseMaterialPreviewCount(string countText)
+        {
+            int count;
+            if (int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out count))
+            {
+                return Math.Max(1, Math.Min(MaterialPreviewButtonCount, count));
+            }
+            return 5;
         }
 
         private static double ParseFuzz(string fuzzText)
@@ -2474,7 +3517,6 @@ namespace BioDraw
             using (var chkDefault = new CheckBox())
             using (var btnDelete = new Button())
             using (var btnOk = new Button())
-            using (var btnCancel = new Button())
             {
                 form.Text = "颜色替换参数";
                 form.FormBorderStyle = FormBorderStyle.Sizable;
@@ -2505,7 +3547,7 @@ namespace BioDraw
                 numSortOrder.DecimalPlaces = 0;
                 numSortOrder.Value = Convert.ToDecimal(Math.Max(1, Math.Min((int)numSortOrder.Maximum, source.SortOrder)), CultureInfo.InvariantCulture);
 
-                lblFuzz.Text = "Fuzz (%)";
+                lblFuzz.Text = "近似度";
                 lblFuzz.TextAlign = ContentAlignment.MiddleLeft;
                 numFuzz.Minimum = 0;
                 numFuzz.Maximum = 100;
@@ -2518,6 +3560,8 @@ namespace BioDraw
                 tbFuzz.Minimum = 0;
                 tbFuzz.Maximum = 1000;
                 tbFuzz.TickFrequency = 50;
+                tbFuzz.SmallChange = 5;
+                tbFuzz.LargeChange = 5;
                 tbFuzz.AutoSize = false;
                 tbFuzz.Value = Math.Max(tbFuzz.Minimum, Math.Min(tbFuzz.Maximum, (int)Math.Round(Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture) * 10, MidpointRounding.AwayFromZero)));
 
@@ -2529,8 +3573,6 @@ namespace BioDraw
                 btnDelete.Enabled = canDelete;
                 btnOk.Text = "保存";
                 btnOk.DialogResult = DialogResult.OK;
-                btnCancel.Text = "取消";
-                btnCancel.DialogResult = DialogResult.Cancel;
 
                 void StyleInputControl(Control control)
                 {
@@ -2563,7 +3605,6 @@ namespace BioDraw
                 StyleInputControl(numFuzz);
                 chkDefault.ForeColor = Color.FromArgb(43, 52, 69);
                 StyleActionButton(btnOk, true, false);
-                StyleActionButton(btnCancel, false, false);
                 StyleActionButton(btnDelete, false, true);
 
                 var syncingFuzz = false;
@@ -2593,6 +3634,18 @@ namespace BioDraw
 
                 numFuzz.ValueChanged += (_, __) => SyncFuzzToTrackBar();
                 tbFuzz.Scroll += (_, __) => SyncFuzzToNumeric();
+                tbFuzz.MouseEnter += (_, __) => tbFuzz.Focus();
+                tbFuzz.MouseWheel += (_, e) =>
+                {
+                    var delta = e.Delta > 0 ? 5 : -5;
+                    var next = Math.Max(tbFuzz.Minimum, Math.Min(tbFuzz.Maximum, tbFuzz.Value + delta));
+                    if (next == tbFuzz.Value)
+                    {
+                        return;
+                    }
+                    tbFuzz.Value = next;
+                    SyncFuzzToNumeric();
+                };
 
                 void ApplyDialogLayout()
                 {
@@ -2632,14 +3685,12 @@ namespace BioDraw
                     var bottomY = Math.Max(preferredBottomY, form.ClientSize.Height - margin - buttonHeight);
 
                     chkDefault.Location = new Point(margin, bottomY + Math.Max(0, (buttonHeight - chkDefault.Height) / 2));
-                    btnCancel.Location = new Point(rightEdge - buttonWidth, bottomY);
-                    btnCancel.Size = new Size(buttonWidth, buttonHeight);
-                    btnOk.Location = new Point(btnCancel.Left - 10 - buttonWidth, bottomY);
+                    var buttonsStartX = rightEdge - (buttonWidth * 2) - 10;
+                    btnOk.Location = new Point(buttonsStartX, bottomY);
                     btnOk.Size = new Size(buttonWidth, buttonHeight);
-                    btnDelete.Location = new Point(btnOk.Left - 10 - buttonWidth, bottomY);
+                    btnDelete.Location = new Point(btnOk.Right + 10, bottomY);
                     btnDelete.Size = new Size(buttonWidth, buttonHeight);
                     ApplyRoundedRegion(btnOk, 7);
-                    ApplyRoundedRegion(btnCancel, 7);
                     ApplyRoundedRegion(btnDelete, 7);
                 }
 
@@ -2665,10 +3716,8 @@ namespace BioDraw
                 form.Controls.Add(chkDefault);
                 form.Controls.Add(btnDelete);
                 form.Controls.Add(btnOk);
-                form.Controls.Add(btnCancel);
 
                 form.AcceptButton = btnOk;
-                form.CancelButton = btnCancel;
                 form.Resize += (_, __) => ApplyDialogLayout();
                 ApplyDialogLayout();
                 form.FormClosed += (_, __) =>

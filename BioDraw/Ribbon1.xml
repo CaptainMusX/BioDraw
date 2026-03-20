@@ -5,50 +5,153 @@
       <tab id="TabBioDraw" label="BioDraw">
         <group id="GroupRegion1" label="帮助">
           <menu id="AboutMenu" label="关于" getImage="GetBrandImage" size="large">
-            <button id="AboutMenuInfo" label="关于" onAction="OnAbout"/>
-            <button id="AboutMenuProjectUrl" label="项目地址" onAction="OnOpenProjectAddress"/>
-            <button id="AboutMenuMaterialLibrary" label="素材库" onAction="OnSetMaterialLibraryPath"/>
+            <button id="AboutMenuInfo" label="关于" onAction="OnAbout" />
+            <button id="AboutMenuProjectUrl" label="项目地址" onAction="OnOpenProjectAddress" />
+            <button id="AboutMenuMaterialLibrary" label="素材库" onAction="OnSetMaterialLibraryPath" />
           </menu>
         </group>
         <group id="GroupRegion2" label="素材库">
           <box id="MaterialRoot" boxStyle="horizontal">
             <box id="MaterialLeftColumn" boxStyle="vertical">
               <box id="Level1Row" boxStyle="horizontal">
-                <labelControl id="LblLevel1" label="类别"/>
-                <dropDown id="DdLevel1"
-                          sizeString="XXXXXXXXXXXXXXXXX"
-                          getItemCount="GetLevel1Count"
-                          getItemLabel="GetLevel1Label"
-                          getSelectedItemIndex="GetLevel1SelectedIndex"
-                          onAction="OnLevel1Changed"/>
+                <labelControl id="LblLevel1" label="类别" />
+                <comboBox id="DdLevel1"
+                  sizeString="XXXXXXXXXXXXXXXXX"
+                  getItemCount="GetLevel1Count"
+                  getItemLabel="GetLevel1Label"
+                  getText="GetLevel1Text"
+                  onChange="OnLevel1TextChanged" />
               </box>
               <box id="Level2Row" boxStyle="horizontal">
-                <labelControl id="LblLevel2" label="子类"/>
-                <dropDown id="DdLevel2"
-                          sizeString="XXXXXXXXXXXXXXXXX"
-                          getItemCount="GetLevel2Count"
-                          getItemLabel="GetLevel2Label"
-                          getSelectedItemIndex="GetLevel2SelectedIndex"
-                          onAction="OnLevel2Changed"/>
+                <labelControl id="LblLevel2" label="子类" />
+                <comboBox id="DdLevel2"
+                  sizeString="XXXXXXXXXXXXXXXXX"
+                  getItemCount="GetLevel2Count"
+                  getItemLabel="GetLevel2Label"
+                  getText="GetLevel2Text"
+                  onChange="OnLevel2TextChanged" />
               </box>
               <box id="SearchRow" boxStyle="horizontal">
-                <labelControl id="LblSearch" label="搜索"/>
-                <editBox id="TxtMaterialSearch"
-                         sizeString="XXXXXXXXXXXXXXXXXXX"
-                         getText="GetMaterialSearchText"
-                         onChange="OnMaterialSearchChanged"/>
+                <labelControl id="LblSearch" label="搜索" />
+                <comboBox id="TxtMaterialSearch"
+                  sizeString="XXXXXXXXXXXXXXXXX"
+                  getText="GetMaterialSearchText"
+                  onChange="OnMaterialSearchChanged" />
               </box>
             </box>
             <box id="MaterialRightColumn" boxStyle="horizontal">
-              <button id="BtnMaterial1" size="large" showImage="true" getImage="GetMaterialImage1" onAction="OnMaterialClick1" getLabel="GetMaterialLabel1" getEnabled="GetMaterialEnabled1" getScreentip="GetMaterialScreentip1" />
-              <button id="BtnMaterial2" size="large" showImage="true" getImage="GetMaterialImage2" onAction="OnMaterialClick2" getLabel="GetMaterialLabel2" getEnabled="GetMaterialEnabled2" getScreentip="GetMaterialScreentip2" />
-              <button id="BtnMaterial3" size="large" showImage="true" getImage="GetMaterialImage3" onAction="OnMaterialClick3" getLabel="GetMaterialLabel3" getEnabled="GetMaterialEnabled3" getScreentip="GetMaterialScreentip3" />
-              <button id="BtnMaterial4" size="large" showImage="true" getImage="GetMaterialImage4" onAction="OnMaterialClick4" getLabel="GetMaterialLabel4" getEnabled="GetMaterialEnabled4" getScreentip="GetMaterialScreentip4" />
-              <button id="BtnMaterial5" size="large" showImage="true" getImage="GetMaterialImage5" onAction="OnMaterialClick5" getLabel="GetMaterialLabel5" getEnabled="GetMaterialEnabled5" getScreentip="GetMaterialScreentip5" />
-              <button id="BtnMaterial6" size="large" showImage="true" getImage="GetMaterialImage6" onAction="OnMaterialClick6" getLabel="GetMaterialLabel6" getEnabled="GetMaterialEnabled6" getScreentip="GetMaterialScreentip6" />
+              <button id="BtnMaterial1" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage1"
+                onAction="OnMaterialClick1"
+                getVisible="GetMaterialVisible1" getEnabled="GetMaterialEnabled1"
+                getScreentip="GetMaterialScreentip1" />
+              <button id="BtnMaterial2" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage2"
+                onAction="OnMaterialClick2"
+                getVisible="GetMaterialVisible2" getEnabled="GetMaterialEnabled2"
+                getScreentip="GetMaterialScreentip2" />
+              <button id="BtnMaterial3" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage3"
+                onAction="OnMaterialClick3"
+                getVisible="GetMaterialVisible3" getEnabled="GetMaterialEnabled3"
+                getScreentip="GetMaterialScreentip3" />
+              <button id="BtnMaterial4" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage4"
+                onAction="OnMaterialClick4"
+                getVisible="GetMaterialVisible4" getEnabled="GetMaterialEnabled4"
+                getScreentip="GetMaterialScreentip4" />
+              <button id="BtnMaterial5" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage5"
+                onAction="OnMaterialClick5"
+                getVisible="GetMaterialVisible5" getEnabled="GetMaterialEnabled5"
+                getScreentip="GetMaterialScreentip5" />
+              <button id="BtnMaterial6" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage6"
+                onAction="OnMaterialClick6"
+                getVisible="GetMaterialVisible6" getEnabled="GetMaterialEnabled6"
+                getScreentip="GetMaterialScreentip6" />
+              <button id="BtnMaterial7" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage7"
+                onAction="OnMaterialClick7"
+                getVisible="GetMaterialVisible7" getEnabled="GetMaterialEnabled7"
+                getScreentip="GetMaterialScreentip7" />
+              <button id="BtnMaterial8" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage8"
+                onAction="OnMaterialClick8"
+                getVisible="GetMaterialVisible8" getEnabled="GetMaterialEnabled8"
+                getScreentip="GetMaterialScreentip8" />
+              <button id="BtnMaterial9" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage9"
+                onAction="OnMaterialClick9"
+                getVisible="GetMaterialVisible9" getEnabled="GetMaterialEnabled9"
+                getScreentip="GetMaterialScreentip9" />
+              <button id="BtnMaterial10" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage10"
+                onAction="OnMaterialClick10"
+                getVisible="GetMaterialVisible10" getEnabled="GetMaterialEnabled10"
+                getScreentip="GetMaterialScreentip10" />
+              <button id="BtnMaterial11" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage11"
+                onAction="OnMaterialClick11"
+                getVisible="GetMaterialVisible11" getEnabled="GetMaterialEnabled11"
+                getScreentip="GetMaterialScreentip11" />
+              <button id="BtnMaterial12" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage12"
+                onAction="OnMaterialClick12"
+                getVisible="GetMaterialVisible12" getEnabled="GetMaterialEnabled12"
+                getScreentip="GetMaterialScreentip12" />
+              <button id="BtnMaterial13" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage13"
+                onAction="OnMaterialClick13"
+                getVisible="GetMaterialVisible13" getEnabled="GetMaterialEnabled13"
+                getScreentip="GetMaterialScreentip13" />
+              <button id="BtnMaterial14" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage14"
+                onAction="OnMaterialClick14"
+                getVisible="GetMaterialVisible14" getEnabled="GetMaterialEnabled14"
+                getScreentip="GetMaterialScreentip14" />
+              <button id="BtnMaterial15" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage15"
+                onAction="OnMaterialClick15"
+                getVisible="GetMaterialVisible15" getEnabled="GetMaterialEnabled15"
+                getScreentip="GetMaterialScreentip15" />
+              <button id="BtnMaterial16" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage16"
+                onAction="OnMaterialClick16"
+                getVisible="GetMaterialVisible16" getEnabled="GetMaterialEnabled16"
+                getScreentip="GetMaterialScreentip16" />
+              <button id="BtnMaterial17" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage17"
+                onAction="OnMaterialClick17"
+                getVisible="GetMaterialVisible17" getEnabled="GetMaterialEnabled17"
+                getScreentip="GetMaterialScreentip17" />
+              <button id="BtnMaterial18" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage18"
+                onAction="OnMaterialClick18"
+                getVisible="GetMaterialVisible18" getEnabled="GetMaterialEnabled18"
+                getScreentip="GetMaterialScreentip18" />
+              <button id="BtnMaterial19" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage19"
+                onAction="OnMaterialClick19"
+                getVisible="GetMaterialVisible19" getEnabled="GetMaterialEnabled19"
+                getScreentip="GetMaterialScreentip19" />
+              <button id="BtnMaterial20" size="large" showImage="true" showLabel="false"
+                getImage="GetMaterialImage20"
+                onAction="OnMaterialClick20"
+                getVisible="GetMaterialVisible20" getEnabled="GetMaterialEnabled20"
+                getScreentip="GetMaterialScreentip20" />
               <box id="MaterialNavBox" boxStyle="vertical">
-                <button id="BtnPageUp" size="normal" label="▲" onAction="OnMaterialPageUp" showImage="false"/>
-                <button id="BtnPageDown" size="normal" label="▼" onAction="OnMaterialPageDown" showImage="false"/>
+                <button id="BtnPageUp" size="normal" showImage="true" getImage="GetPageButtonImage"
+                  showLabel="false" onAction="OnMaterialPageUp" />
+                <button id="BtnPageDown" size="normal" showImage="true"
+                  getImage="GetPageButtonImage"
+                  showLabel="false" onAction="OnMaterialPageDown" />
+                <button id="BtnMaterialPreviewSettings"
+                  showImage="true"
+                  showLabel="false"
+                  getImage="GetSettingsButtonImage"
+                  screentip="预览设置"
+                  onAction="OnEditMaterialPreviewSettings" />
               </box>
             </box>
           </box>
@@ -58,34 +161,63 @@
             <box id="ImageReplacePanel" boxStyle="horizontal">
               <box id="ImageReplaceInputs" boxStyle="vertical">
                 <box id="ImageReplaceSourceRow" boxStyle="horizontal">
-                  <labelControl id="LblImageReplaceSource" label="原色"/>
-                  <editBox id="TxtImageReplaceSourceColor" sizeString="XXXXXXXXXXXX" getText="GetImageReplaceSourceColorText" onChange="OnImageReplaceSourceColorChanged"/>
-                  <button id="BtnPickImageReplaceSourceColor" label="取色" onAction="OnPickImageReplaceSourceColor"/>
+                  <button id="LblImageReplaceSource" label="原色"
+                    onAction="OnEditImageReplaceSourceColor" />
+                  <comboBox id="TxtImageReplaceSourceColor"
+                    sizeString="XXXXXXXXX"
+                    getItemCount="GetImageReplaceSourceColorItemCount"
+                    getItemLabel="GetImageReplaceSourceColorItemLabel"
+                    getText="GetImageReplaceSourceColorText"
+                    onChange="OnImageReplaceSourceColorChanged" />
+                  <button id="BtnPickImageReplaceSourceColor"
+                    label="取色"
+                    showImage="true"
+                    showLabel="false"
+                    getImage="GetPickerButtonImage"
+                    screentip="取色"
+                    onAction="OnPickImageReplaceSourceColor" />
                 </box>
                 <box id="ImageReplaceNewRow" boxStyle="horizontal">
-                  <labelControl id="LblImageReplaceNew" label="新色"/>
-                  <editBox id="TxtImageReplaceNewColor" sizeString="XXXXXXXXXXXX" getText="GetImageReplaceNewColorText" onChange="OnImageReplaceNewColorChanged"/>
-                  <button id="BtnPickImageReplaceNewColor" label="取色" onAction="OnPickImageReplaceNewColor"/>
+                  <button id="LblImageReplaceNew" label="新色" onAction="OnEditImageReplaceNewColor" />
+                  <comboBox id="TxtImageReplaceNewColor"
+                    sizeString="XXXXXXXXX"
+                    getItemCount="GetImageReplaceNewColorItemCount"
+                    getItemLabel="GetImageReplaceNewColorItemLabel"
+                    getText="GetImageReplaceNewColorText"
+                    onChange="OnImageReplaceNewColorChanged" />
+                  <button id="BtnPickImageReplaceNewColor"
+                    label="取色"
+                    showImage="true"
+                    showLabel="false"
+                    getImage="GetPickerButtonImage"
+                    screentip="取色"
+                    onAction="OnPickImageReplaceNewColor" />
                 </box>
                 <box id="ImageReplacePresetRow" boxStyle="horizontal">
-                  <labelControl id="LblImageReplacePreset" label="预设"/>
-                  <dropDown id="DdImageReplacePreset"
-                            sizeString="XXXXXXXXXX"
-                            getItemCount="GetImageReplacePresetItemCount"
-                            getItemLabel="GetImageReplacePresetItemLabel"
-                            getSelectedItemIndex="GetImageReplacePresetSelectedIndex"
-                            onAction="OnImageReplacePresetDropDownChanged"/>
-                  <button id="BtnImageReplacePresetSettings" label="设置" onAction="OnEditImageReplacePreset"/>
+                  <button id="LblImageReplacePreset" label="预设" />
+                  <comboBox id="DdImageReplacePreset"
+                    sizeString="XXXXXXXXX"
+                    getItemCount="GetImageReplacePresetItemCount"
+                    getItemLabel="GetImageReplacePresetItemLabel"
+                    getText="GetImageReplacePresetText"
+                    onChange="OnImageReplacePresetTextChanged" />
+                  <button id="BtnImageReplacePresetSettings"
+                    label="设置"
+                    showImage="true"
+                    showLabel="false"
+                    getImage="GetSettingsButtonImage"
+                    screentip="设置"
+                    onAction="OnEditImageReplacePreset" />
                 </box>
               </box>
               <box id="ImageReplaceActionColumn" boxStyle="vertical">
                 <button id="ApplyImageReplace"
-                        label="换&#8288;色"
-                        showImage="true"
-                        showLabel="true"
-                        onAction="OnApplyImageReplace"
-                        getImage="GetBrandImage"
-                        size="large"/>
+                  label="图片换色"
+                  showImage="true"
+                  showLabel="true"
+                  onAction="OnApplyImageReplace"
+                  getImage="GetImageRecolorButtonImage"
+                  size="large" />
               </box>
             </box>
           </box>

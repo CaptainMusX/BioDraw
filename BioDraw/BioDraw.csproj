@@ -31,7 +31,7 @@
     <ResolveComReferenceSilent>true</ResolveComReferenceSilent>
     <IsWebBootstrapper>False</IsWebBootstrapper>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <PublishUrl>publish\1.0.0\</PublishUrl>
+    <PublishUrl>publish\1.1.0\</PublishUrl>
     <InstallUrl />
     <TargetCulture>zh-chs</TargetCulture>
     <ApplicationVersion>1.0.0.0</ApplicationVersion>
@@ -228,6 +228,9 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="Ribbon.cs">
+      <XmlRibbon>true</XmlRibbon>
+    </Compile>
     <Compile Include="Ribbon1.cs" />
     <Compile Include="ThisAddIn.cs">
       <SubType>Code</SubType>
@@ -242,15 +245,24 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Ribbon1.xml" />
-    <EmbeddedResource Include="..\BioDrawIcon\BioDraw16.png">
-      <LogicalName>BioDraw.BioDraw16.png</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="..\BioDrawIcon\BioDraw32.png">
-      <LogicalName>BioDraw.BioDraw32.png</LogicalName>
+    <EmbeddedResource Include="..\BioDrawIcon\BioDraw.png">
+      <LogicalName>BioDraw.BioDrawIcon.BioDraw.png</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="..\BioDrawIcon\blank-image-200x200.png">
       <LogicalName>BioDraw.BioDrawIcon.blank-image-200x200.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\BioDrawIcon\picker-color.png">
+      <LogicalName>BioDraw.BioDrawIcon.picker-color.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\BioDrawIcon\settings-gear.png">
+      <LogicalName>BioDraw.BioDrawIcon.settings-gear.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\BioDrawIcon\image-recolor.png">
+      <LogicalName>BioDraw.BioDrawIcon.image-recolor.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Ribbon.xml" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
