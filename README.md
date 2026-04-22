@@ -6,8 +6,7 @@
 
 ## 视频教程
 
-- 【BioDraw v1.0.0 功能演示】  
-  https://www.bilibili.com/video/BV1tac6z2EJ3/?share_source=copy_web&vd_source=89f6f6134a704c2c421287c90d4a21a1
+- 【BioDraw v1.2.0 功能演示】 https://www.bilibili.com/video/BV1vEo4B5EvV/?share_source=copy_web&vd_source=89f6f6134a704c2c421287c90d4a21a1
 
 ## 基础操作（含新增功能）
 
