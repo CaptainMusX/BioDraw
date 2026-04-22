@@ -8,13 +8,19 @@
             <button id="AboutMenuInfo" label="关于" onAction="OnAbout" />
             <button id="AboutMenuProjectUrl" label="项目地址" onAction="OnOpenProjectAddress" />
             <button id="AboutMenuMaterialLibrary" label="素材库" onAction="OnSetMaterialLibraryPath" />
+            <toggleButton id="AboutMenuEmbedContextAddToLibrary"
+              label="右键菜单：添加到 BioDraw 素材库"
+              getPressed="GetEmbedContextAddToLibraryPressed"
+              onAction="OnToggleEmbedContextAddToLibrary" />
           </menu>
         </group>
         <group id="GroupRegion2" label="素材库">
           <box id="MaterialRoot" boxStyle="horizontal">
             <box id="MaterialLeftColumn" boxStyle="vertical">
               <box id="Level1Row" boxStyle="horizontal">
-                <labelControl id="LblLevel1" label="类别" />
+                <button id="BtnManageLevel1"
+                  label="类别"
+                  onAction="OnManageLevel1Directory" />
                 <comboBox id="DdLevel1"
                   sizeString="XXXXXXXXXXXXXXXXX"
                   getItemCount="GetLevel1Count"
@@ -23,7 +29,9 @@
                   onChange="OnLevel1TextChanged" />
               </box>
               <box id="Level2Row" boxStyle="horizontal">
-                <labelControl id="LblLevel2" label="子类" />
+                <button id="BtnManageLevel2"
+                  label="子类"
+                  onAction="OnManageLevel2Directory" />
                 <comboBox id="DdLevel2"
                   sizeString="XXXXXXXXXXXXXXXXX"
                   getItemCount="GetLevel2Count"
@@ -32,7 +40,9 @@
                   onChange="OnLevel2TextChanged" />
               </box>
               <box id="SearchRow" boxStyle="horizontal">
-                <labelControl id="LblSearch" label="搜索" />
+                <button id="BtnExecuteSearch"
+                  label="搜索"
+                  onAction="OnExecuteMaterialSearch" />
                 <comboBox id="TxtMaterialSearch"
                   sizeString="XXXXXXXXXXXXXXXXX"
                   getText="GetMaterialSearchText"
@@ -225,4 +235,36 @@
       </tab>
     </tabs>
   </ribbon>
+  <contextMenus>
+    <contextMenu idMso="ContextMenuShape">
+      <button id="CtxAddToBioDrawLibraryShape" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuPicture">
+      <button id="CtxAddToBioDrawLibraryPicture" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuGroup">
+      <button id="CtxAddToBioDrawLibraryGroup" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuObjectsGroup">
+      <button id="CtxAddToBioDrawLibraryObjectsGroup" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuShapeFreeform">
+      <button id="CtxAddToBioDrawLibraryShapeFreeform" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuTextEdit">
+      <button id="CtxAddToBioDrawLibraryTextEdit" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuText">
+      <button id="CtxAddToBioDrawLibraryText" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuSmartArt">
+      <button id="CtxAddToBioDrawLibrarySmartArt" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuGraphic">
+      <button id="CtxAddToBioDrawLibraryGraphic" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+    <contextMenu idMso="ContextMenuChart">
+      <button id="CtxAddToBioDrawLibraryChart" label="添加到 BioDraw 素材库" showImage="true" getImage="GetAddToLibraryContextMenuImage" insertBeforeMso="Cut" onAction="OnAddToLibraryFromContextMenu" getVisible="GetAddToLibraryContextMenuVisible" />
+    </contextMenu>
+  </contextMenus>
 </customUI>

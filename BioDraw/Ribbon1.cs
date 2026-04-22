@@ -64,7 +64,10 @@ namespace BioDraw
         private const string BrandPngFileName = "BioDraw.png";
         private const string SettingsGearPngFileName = "settings-gear.png";
         private const string ImageRecolorPngFileName = "image-recolor.png";
+        private const string AddToLibraryIcoFileName = "add-to-library.ico";
         private const string RibbonEmptyInputToken = "\u2060";
+        private string level1InputText;
+        private string level2InputText;
         private string materialSearchText;
         private double imageReplaceFuzzInput;
         private stdole.IPictureDisp brandImageLarge;
@@ -73,6 +76,7 @@ namespace BioDraw
         private stdole.IPictureDisp pickerButtonImage;
         private stdole.IPictureDisp settingsButtonImage;
         private stdole.IPictureDisp imageRecolorButtonImage;
+        private stdole.IPictureDisp addToLibraryContextMenuImage;
         private stdole.IPictureDisp pageUpButtonImage;
         private stdole.IPictureDisp pageDownButtonImage;
         private readonly List<ImageReplacePreset> imageReplacePresets;
@@ -90,6 +94,7 @@ namespace BioDraw
         private bool presetEditorSaveAsDefaultChecked;
         private Rectangle presetEditorBounds;
         private bool hasPresetEditorBounds;
+        private bool embedContextAddToLibraryEnabled;
         private static readonly HashSet<string> materialFileExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".jpg",
@@ -118,7 +123,10 @@ namespace BioDraw
             presetEditorBounds = Rectangle.Empty;
             hasPresetEditorBounds = false;
             presetEditorSaveAsDefaultChecked = false;
+            embedContextAddToLibraryEnabled = true;
             materialLibraryPath = string.Empty;
+            level1InputText = string.Empty;
+            level2InputText = string.Empty;
             imageReplaceSourceColorInput = string.Empty;
             imageReplaceNewColorInput = string.Empty;
             imageReplaceFuzzInput = 5.0;
@@ -379,6 +387,12 @@ namespace BioDraw
             return imageRecolorButtonImage ?? brandImageLarge ?? brandImageSmall;
         }
 
+        public stdole.IPictureDisp GetAddToLibraryContextMenuImage(Office.IRibbonControl control)
+        {
+            EnsureBrandImages();
+            return addToLibraryContextMenuImage ?? settingsButtonImage ?? brandImageSmall ?? brandImageLarge;
+        }
+
         public stdole.IPictureDisp GetPageButtonImage(Office.IRibbonControl control)
         {
             if (control != null && string.Equals(control.Id, "BtnPageUp", StringComparison.Ordinal))
@@ -451,6 +465,11 @@ namespace BioDraw
 
         public string GetLevel1Text(Office.IRibbonControl control)
         {
+            if (!string.IsNullOrWhiteSpace(level1InputText))
+            {
+                return level1InputText;
+            }
+
             var list = GetLevel1List();
             if (list.Count == 0)
             {
@@ -465,6 +484,21 @@ namespace BioDraw
             var list = GetLevel1List();
             selectedLevel1Index = NormalizeIndex(selectedIndex, list.Count);
             selectedLevel2Index = 0;
+            if (list.Count > 0)
+            {
+                level1InputText = list[selectedLevel1Index];
+            }
+
+            var level2List = GetLevel2List();
+            if (level2List.Count > 0)
+            {
+                level2InputText = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+            }
+            else
+            {
+                level2InputText = string.Empty;
+            }
+
             materialPageIndex = 0;
             ribbon?.InvalidateControl("DdLevel2");
             InvalidateMaterialPreview();
@@ -472,6 +506,7 @@ namespace BioDraw
 
         public void OnLevel1TextChanged(Office.IRibbonControl control, string text)
         {
+            level1InputText = (text ?? string.Empty).Trim();
             var list = GetLevel1List();
             var index = FindExactMatchIndex(list, text);
             if (index < 0)
@@ -501,6 +536,11 @@ namespace BioDraw
 
         public string GetLevel2Text(Office.IRibbonControl control)
         {
+            if (!string.IsNullOrWhiteSpace(level2InputText))
+            {
+                return level2InputText;
+            }
+
             var list = GetLevel2List();
             if (list.Count == 0)
             {
@@ -514,12 +554,17 @@ namespace BioDraw
         {
             var list = GetLevel2List();
             selectedLevel2Index = NormalizeIndex(selectedIndex, list.Count);
+            if (list.Count > 0)
+            {
+                level2InputText = list[selectedLevel2Index];
+            }
             materialPageIndex = 0;
             InvalidateMaterialPreview();
         }
 
         public void OnLevel2TextChanged(Office.IRibbonControl control, string text)
         {
+            level2InputText = (text ?? string.Empty).Trim();
             var list = GetLevel2List();
             var index = FindExactMatchIndex(list, text);
             if (index < 0)
@@ -976,7 +1021,230 @@ namespace BioDraw
         {
             var item = GetMaterialEntryForButton(buttonOffset);
             if (item == null) return;
+
+            if ((Control.ModifierKeys & Keys.Alt) == Keys.Alt)
+            {
+                RenameMaterial(item);
+                return;
+            }
+
+            if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                DeleteMaterial(item);
+                return;
+            }
+
             InsertMaterial(item);
+        }
+
+        private void DeleteMaterial(MaterialEntry item)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.FilePath))
+            {
+                SetStatusText("BioDraw：当前素材不可删除。");
+                return;
+            }
+
+            if (!File.Exists(item.FilePath))
+            {
+                materialPreviewCache.Remove(item.FilePath);
+                materialSearchCacheRootPath = null;
+                materialSearchCacheEntries = null;
+                InvalidateMaterialPreview();
+                SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
+                return;
+            }
+
+            try
+            {
+                materialPreviewCache.Remove(item.FilePath);
+                File.Delete(item.FilePath);
+                materialSearchCacheRootPath = null;
+                materialSearchCacheEntries = null;
+                InvalidateMaterialPreview();
+                SetStatusText("BioDraw：已删除素材 - " + item.Name);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("删除素材失败：" + ex.Message, "BioDraw");
+            }
+        }
+
+        private void RenameMaterial(MaterialEntry item)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.FilePath))
+            {
+                SetStatusText("BioDraw：当前素材不可重命名。");
+                return;
+            }
+
+            if (!File.Exists(item.FilePath))
+            {
+                materialPreviewCache.Remove(item.FilePath);
+                materialSearchCacheRootPath = null;
+                materialSearchCacheEntries = null;
+                InvalidateMaterialPreview();
+                SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
+                return;
+            }
+
+            var currentName = Path.GetFileNameWithoutExtension(item.FilePath) ?? string.Empty;
+            string requestedName;
+            if (!TryShowMaterialRenameDialog(currentName, out requestedName))
+            {
+                return;
+            }
+
+            var sanitizedName = SanitizeFileNameWithoutExtension(requestedName);
+            if (string.IsNullOrWhiteSpace(sanitizedName))
+            {
+                MessageBox.Show("名称不能为空。", "BioDraw");
+                return;
+            }
+
+            var directoryPath = Path.GetDirectoryName(item.FilePath);
+            if (string.IsNullOrWhiteSpace(directoryPath))
+            {
+                MessageBox.Show("素材路径无效，无法重命名。", "BioDraw");
+                return;
+            }
+
+            var extension = Path.GetExtension(item.FilePath);
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ".png";
+            }
+
+            var desiredPath = Path.Combine(directoryPath, sanitizedName + extension);
+            var targetPath = desiredPath;
+            if (File.Exists(targetPath) && !string.Equals(targetPath, item.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                targetPath = BuildUniqueFilePath(directoryPath, sanitizedName, extension);
+            }
+
+            if (string.Equals(targetPath, item.FilePath, StringComparison.Ordinal))
+            {
+                SetStatusText("BioDraw：素材名称未变化。");
+                return;
+            }
+
+            try
+            {
+                // Windows 文件系统大小写不敏感，纯大小写改名需借助中间文件。
+                if (string.Equals(targetPath, item.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    var tempPath = Path.Combine(directoryPath, "_biodraw_rename_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + extension);
+                    File.Move(item.FilePath, tempPath);
+                    File.Move(tempPath, targetPath);
+                }
+                else
+                {
+                    File.Move(item.FilePath, targetPath);
+                }
+
+                materialPreviewCache.Remove(item.FilePath);
+                materialPreviewCache.Remove(targetPath);
+                materialSearchCacheRootPath = null;
+                materialSearchCacheEntries = null;
+                InvalidateMaterialPreview();
+                SetStatusText("BioDraw：已重命名素材 - " + Path.GetFileNameWithoutExtension(targetPath));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("重命名素材失败：" + ex.Message, "BioDraw");
+            }
+        }
+
+        private static bool TryShowMaterialRenameDialog(string currentName, out string newName)
+        {
+            newName = currentName ?? string.Empty;
+            using (var dialog = new Form())
+            using (var layout = new TableLayoutPanel())
+            using (var lblName = new Label())
+            using (var txtName = new TextBox())
+            using (var buttonRow = new FlowLayoutPanel())
+            using (var btnOk = new Button())
+            using (var btnCancel = new Button())
+            {
+                dialog.Text = "重命名素材";
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.StartPosition = FormStartPosition.CenterScreen;
+                dialog.MinimizeBox = false;
+                dialog.MaximizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.AutoScaleMode = AutoScaleMode.Dpi;
+                dialog.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
+                dialog.ClientSize = new Size(640, 250);
+                dialog.Padding = new Padding(24, 22, 24, 20);
+
+                lblName.Text = "请输入新名称";
+                lblName.AutoSize = true;
+                lblName.Margin = new Padding(0);
+                lblName.Anchor = AnchorStyles.Left | AnchorStyles.Top;
+
+                txtName.Text = currentName ?? string.Empty;
+                txtName.Font = dialog.Font;
+                txtName.BorderStyle = BorderStyle.FixedSingle;
+                txtName.Multiline = true;
+                txtName.Margin = new Padding(0);
+                txtName.Dock = DockStyle.Fill;
+                txtName.MinimumSize = new Size(0, 40);
+
+                var buttonHeight = 36;
+                var buttonWidth = 104;
+                var buttonGap = 12;
+                btnOk.Text = "确定";
+                btnOk.DialogResult = DialogResult.OK;
+                btnOk.Size = new Size(buttonWidth, buttonHeight);
+                btnOk.Margin = new Padding(0, 0, buttonGap, 0);
+
+                btnCancel.Text = "取消";
+                btnCancel.DialogResult = DialogResult.Cancel;
+                btnCancel.Size = new Size(buttonWidth, buttonHeight);
+                btnCancel.Margin = new Padding(0);
+
+                buttonRow.FlowDirection = FlowDirection.LeftToRight;
+                buttonRow.WrapContents = false;
+                buttonRow.AutoSize = true;
+                buttonRow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                buttonRow.Margin = new Padding(0);
+                buttonRow.Anchor = AnchorStyles.Right | AnchorStyles.Bottom;
+                buttonRow.Controls.Add(btnOk);
+                buttonRow.Controls.Add(btnCancel);
+
+                layout.Dock = DockStyle.Fill;
+                layout.Margin = new Padding(0);
+                layout.Padding = new Padding(0);
+                layout.ColumnCount = 1;
+                layout.RowCount = 5;
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 标签
+                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F)); // 固定间距，防止挤占
+                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F)); // 输入框
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // 弹性空白
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // 按钮
+                layout.Controls.Add(lblName, 0, 0);
+                layout.Controls.Add(txtName, 0, 2);
+                layout.Controls.Add(buttonRow, 0, 4);
+
+                dialog.Controls.Add(layout);
+                dialog.AcceptButton = btnOk;
+                dialog.CancelButton = btnCancel;
+                dialog.Shown += (_, __) =>
+                {
+                    txtName.Focus();
+                    txtName.SelectAll();
+                };
+
+                var result = dialog.ShowDialog();
+                if (result != DialogResult.OK)
+                {
+                    return false;
+                }
+
+                newName = (txtName.Text ?? string.Empty).Trim();
+                return true;
+            }
         }
 
         public void OnMaterialPageUp(Office.IRibbonControl control)
@@ -1219,6 +1487,8 @@ namespace BioDraw
                 materialLibraryPath = dialog.SelectedPath.Trim();
                 selectedLevel1Index = 0;
                 selectedLevel2Index = 0;
+                level1InputText = string.Empty;
+                level2InputText = string.Empty;
                 materialPageIndex = 0;
                 materialSearchText = string.Empty;
                 materialPreviewCache.Clear();
@@ -1231,6 +1501,217 @@ namespace BioDraw
                 InvalidateMaterialPreview();
                 SetStatusText("BioDraw：素材库路径已更新。");
             }
+        }
+
+        public void OnManageLevel1Directory(Office.IRibbonControl control)
+        {
+            string message;
+            if (!TryManageLevel1Directory(out message))
+            {
+                MessageBox.Show(message, "BioDraw");
+                return;
+            }
+
+            SetStatusText(message);
+        }
+
+        public void OnManageLevel2Directory(Office.IRibbonControl control)
+        {
+            string message;
+            if (!TryManageLevel2Directory(out message))
+            {
+                MessageBox.Show(message, "BioDraw");
+                return;
+            }
+
+            SetStatusText(message);
+        }
+
+        public void OnExecuteMaterialSearch(Office.IRibbonControl control)
+        {
+            OnMaterialSearchChanged(control, materialSearchText ?? string.Empty);
+        }
+
+        private bool TryManageLevel1Directory(out string message)
+        {
+            message = string.Empty;
+            if (!UseCustomMaterialLibrary())
+            {
+                message = "请先在“关于 -> 素材库”中设置素材库目录。";
+                return false;
+            }
+
+            var name = (level1InputText ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                message = "请输入类别名称。";
+                return false;
+            }
+
+            var fullPath = Path.Combine(materialLibraryPath, name);
+            var isDelete = (Control.ModifierKeys & Keys.Control) == Keys.Control;
+
+            try
+            {
+                if (isDelete)
+                {
+                    if (!Directory.Exists(fullPath))
+                    {
+                        message = "要删除的类别目录不存在。";
+                        return false;
+                    }
+
+                    Directory.Delete(fullPath, true);
+                    RefreshMaterialDirectoryView(name, string.Empty, false);
+                    message = "BioDraw：已删除类别目录 - " + name;
+                    return true;
+                }
+
+                if (Directory.Exists(fullPath))
+                {
+                    RefreshMaterialDirectoryView(name, string.Empty, false);
+                    message = "BioDraw：类别目录已存在 - " + name;
+                    return true;
+                }
+
+                Directory.CreateDirectory(fullPath);
+                RefreshMaterialDirectoryView(name, string.Empty, false);
+                message = "BioDraw：已创建类别目录 - " + name;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "操作失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        private bool TryManageLevel2Directory(out string message)
+        {
+            message = string.Empty;
+            if (!UseCustomMaterialLibrary())
+            {
+                message = "请先在“关于 -> 素材库”中设置素材库目录。";
+                return false;
+            }
+
+            var level1List = GetLevel1List();
+            if (level1List.Count == 0)
+            {
+                message = "请先创建类别目录。";
+                return false;
+            }
+
+            var level1Name = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1Path = Path.Combine(materialLibraryPath, level1Name);
+            if (!Directory.Exists(level1Path))
+            {
+                message = "当前类别目录不存在，请先创建类别。";
+                return false;
+            }
+
+            var level2Name = (level2InputText ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(level2Name))
+            {
+                message = "请输入子类名称。";
+                return false;
+            }
+
+            var level2Path = Path.Combine(level1Path, level2Name);
+            var isDelete = (Control.ModifierKeys & Keys.Control) == Keys.Control;
+            try
+            {
+                if (isDelete)
+                {
+                    if (!Directory.Exists(level2Path))
+                    {
+                        message = "要删除的子类目录不存在。";
+                        return false;
+                    }
+
+                    Directory.Delete(level2Path, true);
+                    RefreshMaterialDirectoryView(level1Name, level2Name, false);
+                    message = "BioDraw：已删除子类目录 - " + level2Name;
+                    return true;
+                }
+
+                if (Directory.Exists(level2Path))
+                {
+                    RefreshMaterialDirectoryView(level1Name, level2Name, true);
+                    message = "BioDraw：子类目录已存在 - " + level2Name;
+                    return true;
+                }
+
+                Directory.CreateDirectory(level2Path);
+                RefreshMaterialDirectoryView(level1Name, level2Name, true);
+                message = "BioDraw：已创建子类目录 - " + level2Name;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "操作失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        private void RefreshMaterialDirectoryView(string preferredLevel1, string preferredLevel2, bool keepLevel2)
+        {
+            materialPreviewCache.Clear();
+            materialSearchCacheRootPath = null;
+            materialSearchCacheEntries = null;
+            materialPageIndex = 0;
+
+            var level1List = GetLevel1List();
+            var level1Index = FindExactMatchIndex(level1List, preferredLevel1);
+            selectedLevel1Index = level1Index >= 0 ? level1Index : 0;
+
+            var level2List = GetLevel2List();
+            var level2Index = keepLevel2 ? FindExactMatchIndex(level2List, preferredLevel2) : -1;
+            selectedLevel2Index = level2Index >= 0 ? level2Index : 0;
+
+            level1InputText = level1List.Count > 0 ? level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)] : string.Empty;
+            level2InputText = level2List.Count > 0 ? level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)] : string.Empty;
+
+            ribbon?.InvalidateControl("DdLevel1");
+            ribbon?.InvalidateControl("DdLevel2");
+            InvalidateMaterialPreview();
+        }
+
+        public bool GetEmbedContextAddToLibraryPressed(Office.IRibbonControl control)
+        {
+            return embedContextAddToLibraryEnabled;
+        }
+
+        public void OnToggleEmbedContextAddToLibrary(Office.IRibbonControl control, bool pressed)
+        {
+            embedContextAddToLibraryEnabled = pressed;
+            SaveImageReplacePresets();
+            ribbon?.Invalidate();
+            SetStatusText(pressed
+                ? "BioDraw：已启用右键菜单项 - 添加到 BioDraw 素材库。"
+                : "BioDraw：已停用右键菜单项 - 添加到 BioDraw 素材库。");
+        }
+
+        public bool GetAddToLibraryContextMenuVisible(Office.IRibbonControl control)
+        {
+            if (!embedContextAddToLibraryEnabled)
+            {
+                return false;
+            }
+
+            return HasSelectedShapes();
+        }
+
+        public void OnAddToLibraryFromContextMenu(Office.IRibbonControl control)
+        {
+            string message;
+            if (!TryAddSelectionToCurrentMaterialFolder(out message))
+            {
+                MessageBox.Show(message, "BioDraw");
+                return;
+            }
+
+            SetStatusText(message);
         }
 
         public string GetApplyPresetLabel(Office.IRibbonControl control)
@@ -1463,6 +1944,12 @@ namespace BioDraw
 
         public void OnApplyImageReplace(Office.IRibbonControl control)
         {
+            if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                OnEditImageReplacePreset(control);
+                return;
+            }
+
             var preset = GetCurrentPreset();
 
             var application = Globals.ThisAddIn?.Application;
@@ -1745,6 +2232,14 @@ namespace BioDraw
                 var imageRecolorPath = ResolveBioDrawIconFilePath(ImageRecolorPngFileName);
                 imageRecolorButtonImage = LoadFileImageAsPicture(imageRecolorPath)
                     ?? LoadEmbeddedPngAsPicture(ImageRecolorResourceName, ImageRecolorPngFileName);
+            }
+            if (addToLibraryContextMenuImage == null)
+            {
+                var addToLibraryPath = ResolveBioDrawIconFilePath(AddToLibraryIcoFileName);
+                addToLibraryContextMenuImage = LoadFileImageAsPicture(addToLibraryPath)
+                    ?? settingsButtonImage
+                    ?? brandImageSmall
+                    ?? brandImageLarge;
             }
         }
 
@@ -2439,6 +2934,346 @@ namespace BioDraw
             SaveImageReplacePresets();
         }
 
+        private bool TryAddSelectionToCurrentMaterialFolder(out string message)
+        {
+            message = string.Empty;
+            var app = Globals.ThisAddIn?.Application;
+            if (app == null)
+            {
+                message = "未能获取 PowerPoint 应用实例。";
+                return false;
+            }
+
+            if (!UseCustomMaterialLibrary())
+            {
+                message = "请先在“关于 -> 素材库”中设置素材库目录。";
+                return false;
+            }
+
+            dynamic selection = null;
+            try
+            {
+                selection = app.ActiveWindow?.Selection;
+            }
+            catch
+            {
+            }
+
+            List<dynamic> shapes;
+            if (!TryGetSelectedShapes(selection, out shapes) || shapes.Count == 0)
+            {
+                message = "请先选中一个或多个对象。";
+                return false;
+            }
+
+            string targetDirectory;
+            string targetDirectoryError;
+            if (!TryResolveCurrentMaterialTargetDirectory(out targetDirectory, out targetDirectoryError))
+            {
+                message = targetDirectoryError;
+                return false;
+            }
+
+            string snapshotPath = null;
+            string snapshotError = string.Empty;
+            if (!TryCreatePresentationSnapshot(app, out snapshotPath, out snapshotError))
+            {
+                snapshotPath = null;
+            }
+
+            var savedCount = 0;
+            var failedCount = 0;
+            string lastError = string.Empty;
+            foreach (var shape in shapes)
+            {
+                string savedPath;
+                string saveError;
+                if (TrySaveShapeToMaterialFolder(shape, snapshotPath, targetDirectory, out savedPath, out saveError))
+                {
+                    savedCount++;
+                }
+                else
+                {
+                    failedCount++;
+                    lastError = saveError;
+                }
+            }
+
+            TryDeleteFile(snapshotPath);
+            materialSearchCacheRootPath = null;
+            materialSearchCacheEntries = null;
+            materialPageIndex = 0;
+            ribbon?.InvalidateControl("DdLevel1");
+            ribbon?.InvalidateControl("DdLevel2");
+            InvalidateMaterialPreview();
+
+            if (savedCount == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(lastError))
+                {
+                    message = "保存失败：" + lastError;
+                }
+                else if (!string.IsNullOrWhiteSpace(snapshotError))
+                {
+                    message = "保存失败：" + snapshotError;
+                }
+                else
+                {
+                    message = "保存失败：未找到可保存的对象。";
+                }
+                return false;
+            }
+
+            message = failedCount > 0
+                ? $"BioDraw：已保存 {savedCount} 个对象到当前素材目录，{failedCount} 个失败。"
+                : $"BioDraw：已保存 {savedCount} 个对象到当前素材目录。";
+            return true;
+        }
+
+        private bool HasSelectedShapes()
+        {
+            var app = Globals.ThisAddIn?.Application;
+            if (app == null)
+            {
+                return false;
+            }
+
+            dynamic selection = null;
+            try
+            {
+                selection = app.ActiveWindow?.Selection;
+            }
+            catch
+            {
+            }
+
+            List<dynamic> shapes;
+            return TryGetSelectedShapes(selection, out shapes) && shapes.Count > 0;
+        }
+
+        private bool TryResolveCurrentMaterialTargetDirectory(out string targetDirectory, out string errorMessage)
+        {
+            targetDirectory = null;
+            errorMessage = string.Empty;
+            if (!UseCustomMaterialLibrary())
+            {
+                errorMessage = "请先在“关于 -> 素材库”中设置素材库目录。";
+                return false;
+            }
+
+            var level1List = GetLevel1List();
+            if (level1List.Count == 0)
+            {
+                errorMessage = "素材库目录结构不可用。";
+                return false;
+            }
+
+            var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1Path = Path.Combine(materialLibraryPath, level1);
+            Directory.CreateDirectory(level1Path);
+
+            bool hasSubDirectories;
+            try
+            {
+                hasSubDirectories = Directory.EnumerateDirectories(level1Path).Any();
+            }
+            catch
+            {
+                hasSubDirectories = false;
+            }
+
+            if (!hasSubDirectories)
+            {
+                targetDirectory = level1Path;
+                return true;
+            }
+
+            var level2List = GetLevel2List();
+            if (level2List.Count == 0)
+            {
+                targetDirectory = level1Path;
+                return true;
+            }
+
+            var level2 = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+            var level2Path = Path.Combine(level1Path, level2);
+            Directory.CreateDirectory(level2Path);
+            targetDirectory = level2Path;
+            return true;
+        }
+
+        private bool TrySaveShapeToMaterialFolder(dynamic shape, string snapshotPath, string targetDirectory, out string savedPath, out string errorMessage)
+        {
+            savedPath = null;
+            errorMessage = string.Empty;
+            if (shape == null)
+            {
+                errorMessage = "对象为空。";
+                return false;
+            }
+
+            var shapeName = GetShapeDisplayName(shape);
+            var type = 0;
+            try
+            {
+                type = (int)shape.Type;
+            }
+            catch
+            {
+            }
+
+            // 图片对象尽量保持原始媒体格式（png/jpg/svg/...）
+            if (type == 13 || type == 11)
+            {
+                if (string.IsNullOrWhiteSpace(snapshotPath))
+                {
+                    errorMessage = "无法读取演示文稿快照。";
+                    return false;
+                }
+
+                string sourcePath;
+                if (!TryExtractOriginalImageFromPptx(shape, snapshotPath, out sourcePath, out errorMessage))
+                {
+                    return false;
+                }
+
+                try
+                {
+                    var ext = Path.GetExtension(sourcePath);
+                    if (string.IsNullOrWhiteSpace(ext))
+                    {
+                        ext = ".png";
+                    }
+
+                    savedPath = BuildUniqueFilePath(targetDirectory, shapeName, ext);
+                    File.Copy(sourcePath, savedPath, false);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    errorMessage = ex.Message;
+                    return false;
+                }
+                finally
+                {
+                    TryDeleteFile(sourcePath);
+                }
+            }
+
+            try
+            {
+                // 原生形状、文本框、组合等优先导出为 SVG。
+                savedPath = BuildUniqueFilePath(targetDirectory, shapeName, ".svg");
+                shape.Export(savedPath, 6);
+                if (File.Exists(savedPath) && new FileInfo(savedPath).Length > 0)
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                // 兜底使用 PNG，保证至少可保存。
+                savedPath = BuildUniqueFilePath(targetDirectory, shapeName, ".png");
+                shape.Export(savedPath, 2);
+                if (File.Exists(savedPath) && new FileInfo(savedPath).Length > 0)
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+
+            errorMessage = "导出对象失败。";
+            return false;
+        }
+
+        private static string GetShapeDisplayName(dynamic shape)
+        {
+            try
+            {
+                var value = (string)shape.Name;
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+            catch
+            {
+            }
+
+            return "Object";
+        }
+
+        private static string BuildUniqueFilePath(string directoryPath, string preferredName, string extension)
+        {
+            var stem = SanitizeFileNameWithoutExtension(preferredName);
+            if (string.IsNullOrWhiteSpace(stem))
+            {
+                stem = "Object";
+            }
+
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ".png";
+            }
+            if (!extension.StartsWith(".", StringComparison.Ordinal))
+            {
+                extension = "." + extension;
+            }
+
+            var path = Path.Combine(directoryPath, stem + extension);
+            if (!File.Exists(path))
+            {
+                return path;
+            }
+
+            for (int i = 1; i < 10000; i++)
+            {
+                path = Path.Combine(directoryPath, stem + "_" + i.ToString(CultureInfo.InvariantCulture) + extension);
+                if (!File.Exists(path))
+                {
+                    return path;
+                }
+            }
+
+            return Path.Combine(
+                directoryPath,
+                stem + "_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + extension);
+        }
+
+        private static string SanitizeFileNameWithoutExtension(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var buffer = new StringBuilder(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                var ch = value[i];
+                if (invalidChars.Contains(ch))
+                {
+                    buffer.Append('_');
+                }
+                else
+                {
+                    buffer.Append(ch);
+                }
+            }
+
+            var result = buffer.ToString().Trim();
+            return string.IsNullOrWhiteSpace(result) ? "Object" : result;
+        }
+
         private void InvalidateImageReplaceRibbonControls()
         {
             ribbon?.InvalidateControl("ApplyImageReplace");
@@ -2537,6 +3372,13 @@ namespace BioDraw
 
             if (!File.Exists(presetStorePath))
             {
+                var defaultPreset = CreateDefaultPreset();
+                imageReplacePresets.Add(defaultPreset);
+                defaultPresetName = defaultPreset.Name;
+                currentPresetName = defaultPresetName;
+                NormalizePresetSortOrders();
+                EnsurePresetSelectionNames();
+                SyncImageReplaceInputValuesFromCurrentPreset();
                 return;
             }
 
@@ -2551,6 +3393,7 @@ namespace BioDraw
                 defaultPresetName = (string)root.Attribute("Default");
                 currentPresetName = (string)root.Attribute("Current");
                 materialLibraryPath = (string)root.Attribute("MaterialLibraryPath") ?? string.Empty;
+                embedContextAddToLibraryEnabled = ParseBool((string)root.Attribute("EmbedContextAddToLibraryEnabled"));
                 imageReplaceFuzzInput = ParseFuzz((string)root.Attribute("ImageReplaceFuzzInput"));
                 materialPreviewCount = ParseMaterialPreviewCount((string)root.Attribute("MaterialPreviewCount"));
                 hasPresetEditorBounds = TryParseEditorBounds(root, out presetEditorBounds);
@@ -2592,14 +3435,22 @@ namespace BioDraw
             {
                 currentPresetName = defaultPresetName;
             }
+            if (imageReplacePresets.Count == 0)
+            {
+                var defaultPreset = CreateDefaultPreset();
+                imageReplacePresets.Add(defaultPreset);
+                defaultPresetName = defaultPreset.Name;
+                currentPresetName = defaultPresetName;
+            }
 
             NormalizePresetSortOrders();
             EnsurePresetSelectionNames();
-            imageReplaceSourceColorInput = string.Empty;
-            imageReplaceNewColorInput = string.Empty;
             imageReplaceFuzzInput = NormalizeFuzzPercent(imageReplaceFuzzInput);
             materialPreviewCount = ParseMaterialPreviewCount(materialPreviewCount.ToString(CultureInfo.InvariantCulture));
             EnsureImageReplaceColorOptions();
+            SyncImageReplaceInputValuesFromCurrentPreset();
+            // 始终默认启用“添加到 BioDraw 素材库”右键项，避免旧配置将其静默关闭。
+            embedContextAddToLibraryEnabled = true;
         }
 
         private void SaveImageReplacePresets()
@@ -2619,6 +3470,7 @@ namespace BioDraw
                 new XAttribute("Default", defaultPresetName ?? string.Empty),
                 new XAttribute("Current", currentPresetName ?? string.Empty),
                 new XAttribute("MaterialLibraryPath", materialLibraryPath ?? string.Empty),
+                new XAttribute("EmbedContextAddToLibraryEnabled", embedContextAddToLibraryEnabled),
                 new XAttribute("MaterialPreviewCount", GetMaterialPageSize()),
                 new XAttribute("ImageReplaceSourceInput", NormalizeColorInputText(imageReplaceSourceColorInput)),
                 new XAttribute("ImageReplaceNewInput", NormalizeColorInputText(imageReplaceNewColorInput)),
@@ -2773,6 +3625,12 @@ namespace BioDraw
                 arguments.Append("-transparent ");
                 arguments.Append(QuoteArg(preset.TargetColor));
                 arguments.Append(" ");
+            }
+
+            var outputExtension = Path.GetExtension(outputPath);
+            if (IsJpegFormat(outputExtension))
+            {
+                arguments.Append("-quality 100 -sampling-factor 4:4:4 -interlace none ");
             }
 
             arguments.Append(QuoteArg(outputPath));
@@ -2957,6 +3815,25 @@ namespace BioDraw
                 case ".jfif":
                 case ".bmp":
                 case ".dib":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsJpegFormat(string extension)
+        {
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                return false;
+            }
+
+            switch (extension.Trim().ToLowerInvariant())
+            {
+                case ".jpg":
+                case ".jpeg":
+                case ".jpe":
+                case ".jfif":
                     return true;
                 default:
                     return false;
@@ -3314,6 +4191,7 @@ namespace BioDraw
                 var cropBottom = 0f;
                 var hasCrop = TryGetPictureCropValues(shape, out cropLeft, out cropTop, out cropRight, out cropBottom) &&
                     (Math.Abs(cropLeft) > 0.01f || Math.Abs(cropTop) > 0.01f || Math.Abs(cropRight) > 0.01f || Math.Abs(cropBottom) > 0.01f);
+
                 var insertionLeft = left;
                 var insertionTop = top;
                 var insertionWidth = width;
@@ -4517,8 +5395,30 @@ namespace BioDraw
             }
 
             var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1Path = Path.Combine(materialLibraryPath, level1);
+            if (!Directory.Exists(level1Path))
+            {
+                return new List<MaterialEntry> { new MaterialEntry { Name = "默认", FilePath = string.Empty } };
+            }
+
+            // 兼容“一级目录直接放素材文件”的结构。
+            var hasSubDirectories = false;
+            try
+            {
+                hasSubDirectories = Directory.EnumerateDirectories(level1Path).Any();
+            }
+            catch
+            {
+                hasSubDirectories = false;
+            }
+
+            if (!hasSubDirectories)
+            {
+                return GetMaterialEntriesFromFolder(level1Path);
+            }
+
             var level2 = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
-            var level2Path = Path.Combine(materialLibraryPath, level1, level2);
+            var level2Path = Path.Combine(level1Path, level2);
             return GetMaterialEntriesFromFolder(level2Path);
         }
 

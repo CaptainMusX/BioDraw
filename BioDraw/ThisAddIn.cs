@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,9 +10,12 @@ namespace BioDraw
 {
     public partial class ThisAddIn
     {
+        private Ribbon1 bioDrawRibbon;
+
         protected override Office.IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
-            return new Ribbon1();
+            bioDrawRibbon = new Ribbon1();
+            return bioDrawRibbon;
         }
 
         private void ThisAddIn_Startup(object sender, System.EventArgs e)
