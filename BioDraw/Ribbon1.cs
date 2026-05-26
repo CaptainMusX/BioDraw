@@ -14,6 +14,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Xml.Linq;
 using Office = Microsoft.Office.Core;
+using static BioDraw.NativeMethods;
 
 // TODO:   按照以下步骤启用功能区(XML)项:
 
@@ -65,6 +66,7 @@ namespace BioDraw
         private const string SettingsGearPngFileName = "settings-gear.png";
         private const string ImageRecolorPngFileName = "image-recolor.png";
         private const string AddToLibraryIcoFileName = "add-to-library.ico";
+        private const int MaterialPreviewCacheLimit = 300;
         private const string RibbonEmptyInputToken = "\u2060";
         private string level1InputText;
         private string level2InputText;
@@ -85,6 +87,7 @@ namespace BioDraw
         private string currentPresetName;
         private string defaultPresetName;
         private string materialLibraryPath;
+        private string imageMagickPath;
         private string materialSearchCacheRootPath;
         private List<MaterialEntry> materialSearchCacheEntries;
         private string imageReplaceSourceColorInput;
@@ -95,20 +98,6 @@ namespace BioDraw
         private Rectangle presetEditorBounds;
         private bool hasPresetEditorBounds;
         private bool embedContextAddToLibraryEnabled;
-        private static readonly HashSet<string> materialFileExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".bmp",
-            ".gif",
-            ".tif",
-            ".tiff",
-            ".webp",
-            ".svg",
-            ".emf",
-            ".wmf"
-        };
 
         public Ribbon1()
         {
@@ -125,6 +114,7 @@ namespace BioDraw
             presetEditorSaveAsDefaultChecked = false;
             embedContextAddToLibraryEnabled = true;
             materialLibraryPath = string.Empty;
+            imageMagickPath = string.Empty;
             level1InputText = string.Empty;
             level2InputText = string.Empty;
             imageReplaceSourceColorInput = string.Empty;
@@ -460,7 +450,7 @@ namespace BioDraw
         public int GetLevel1SelectedIndex(Office.IRibbonControl control)
         {
             var list = GetLevel1List();
-            return NormalizeIndex(selectedLevel1Index, list.Count);
+            return MaterialLibraryService.NormalizeIndex(selectedLevel1Index, list.Count);
         }
 
         public string GetLevel1Text(Office.IRibbonControl control)
@@ -475,14 +465,14 @@ namespace BioDraw
             {
                 return string.Empty;
             }
-            var index = NormalizeIndex(selectedLevel1Index, list.Count);
+            var index = MaterialLibraryService.NormalizeIndex(selectedLevel1Index, list.Count);
             return list[index];
         }
 
         public void OnLevel1Changed(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var list = GetLevel1List();
-            selectedLevel1Index = NormalizeIndex(selectedIndex, list.Count);
+            selectedLevel1Index = MaterialLibraryService.NormalizeIndex(selectedIndex, list.Count);
             selectedLevel2Index = 0;
             if (list.Count > 0)
             {
@@ -492,7 +482,7 @@ namespace BioDraw
             var level2List = GetLevel2List();
             if (level2List.Count > 0)
             {
-                level2InputText = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+                level2InputText = level2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, level2List.Count)];
             }
             else
             {
@@ -508,7 +498,7 @@ namespace BioDraw
         {
             level1InputText = (text ?? string.Empty).Trim();
             var list = GetLevel1List();
-            var index = FindExactMatchIndex(list, text);
+            var index = PresetManager.FindExactMatchIndex(list, text);
             if (index < 0)
             {
                 return;
@@ -531,7 +521,7 @@ namespace BioDraw
         public int GetLevel2SelectedIndex(Office.IRibbonControl control)
         {
             var list = GetLevel2List();
-            return NormalizeIndex(selectedLevel2Index, list.Count);
+            return MaterialLibraryService.NormalizeIndex(selectedLevel2Index, list.Count);
         }
 
         public string GetLevel2Text(Office.IRibbonControl control)
@@ -546,14 +536,14 @@ namespace BioDraw
             {
                 return string.Empty;
             }
-            var index = NormalizeIndex(selectedLevel2Index, list.Count);
+            var index = MaterialLibraryService.NormalizeIndex(selectedLevel2Index, list.Count);
             return list[index];
         }
 
         public void OnLevel2Changed(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var list = GetLevel2List();
-            selectedLevel2Index = NormalizeIndex(selectedIndex, list.Count);
+            selectedLevel2Index = MaterialLibraryService.NormalizeIndex(selectedIndex, list.Count);
             if (list.Count > 0)
             {
                 level2InputText = list[selectedLevel2Index];
@@ -566,7 +556,7 @@ namespace BioDraw
         {
             level2InputText = (text ?? string.Empty).Trim();
             var list = GetLevel2List();
-            var index = FindExactMatchIndex(list, text);
+            var index = PresetManager.FindExactMatchIndex(list, text);
             if (index < 0)
             {
                 return;
@@ -601,13 +591,13 @@ namespace BioDraw
         public int GetLevel3SelectedIndex(Office.IRibbonControl control)
         {
             var list = GetLevel3List();
-            return NormalizeIndex(selectedLevel3Index, list.Count);
+            return MaterialLibraryService.NormalizeIndex(selectedLevel3Index, list.Count);
         }
 
         public void OnLevel3Changed(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
             var list = GetLevel3List();
-            selectedLevel3Index = NormalizeIndex(selectedIndex, list.Count);
+            selectedLevel3Index = MaterialLibraryService.NormalizeIndex(selectedIndex, list.Count);
             materialPageIndex = 0;
             InvalidateMaterialPreview();
         }
@@ -781,7 +771,7 @@ namespace BioDraw
         private string GetMaterialDisplayLabel(int buttonOffset)
         {
             var item = GetMaterialEntryForButton(buttonOffset);
-            return ToFixedLengthMaterialLabel(item == null ? string.Empty : item.Name);
+            return MaterialLibraryService.ToFixedLengthMaterialLabel(item == null ? string.Empty : item.Name);
         }
 
         private string GetMaterialTooltip(int buttonOffset)
@@ -821,172 +811,6 @@ namespace BioDraw
 
 
 
-        private static int GetDisplayLength(string text)
-        {
-            int len = 0;
-            foreach (char c in text)
-            {
-                len += c > 255 ? 2 : 1;
-            }
-            return len;
-        }
-
-        private static string ToFixedLengthMaterialLabel(string text)
-        {
-            const int maxVisibleLength = 16;
-            const int totalLength = 20;
-            const char padChar = '\u00A0';
-
-            var normalized = (text ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(normalized))
-            {
-                return new string(padChar, totalLength);
-            }
-
-            string label = "";
-            int currentLen = 0;
-            bool truncated = false;
-
-            foreach (char c in normalized)
-            {
-                int charLen = c > 255 ? 2 : 1;
-                if (currentLen + charLen > maxVisibleLength)
-                {
-                    truncated = true;
-                    break;
-                }
-                label += c;
-                currentLen += charLen;
-            }
-
-            if (truncated)
-            {
-                label += "…";
-                currentLen += 2; // '…' is usually full-width
-            }
-
-            int padCount = totalLength - currentLen;
-            if (padCount > 0)
-            {
-                label += new string(padChar, padCount);
-            }
-
-            return label;
-        }
-
-        private static string ToEllipsisLabel(string text, int maxWidthPixels, int maxLines)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return string.Empty;
-            }
-
-            if (maxWidthPixels <= 8)
-            {
-                return "…";
-            }
-
-            var sourceText = text.Trim();
-            using (var font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point))
-            {
-                const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
-                if (MeasureTextWidth(sourceText, font, flags) <= maxWidthPixels)
-                {
-                    return sourceText;
-                }
-
-                var safeLines = Math.Max(1, maxLines);
-                if (safeLines >= 2)
-                {
-                    var firstLineLength = GetLineBreakLength(sourceText, maxWidthPixels, font, flags);
-                    if (firstLineLength > 0)
-                    {
-                        var firstLine = sourceText.Substring(0, firstLineLength).TrimEnd();
-                        var remaining = sourceText.Substring(firstLineLength).TrimStart();
-                        if (!string.IsNullOrWhiteSpace(remaining))
-                        {
-                            var secondLine = BuildEllipsisLine(remaining, maxWidthPixels, font, flags);
-                            return string.Concat(firstLine, "\n", secondLine);
-                        }
-                    }
-                }
-
-                return BuildEllipsisLine(sourceText, maxWidthPixels, font, flags);
-            }
-        }
-
-        private static int MeasureTextWidth(string text, Font font, TextFormatFlags flags)
-        {
-            return TextRenderer.MeasureText(text, font, new Size(int.MaxValue, int.MaxValue), flags).Width;
-        }
-
-        private static int GetLineBreakLength(string text, int maxWidthPixels, Font font, TextFormatFlags flags)
-        {
-            var maxLength = GetMaxFittingLength(text, maxWidthPixels, font, flags);
-            if (maxLength <= 0)
-            {
-                return 0;
-            }
-
-            var breakLength = maxLength;
-            for (int index = maxLength - 1; index >= 1; index--)
-            {
-                if (char.IsWhiteSpace(text[index]))
-                {
-                    breakLength = index;
-                    break;
-                }
-            }
-
-            while (breakLength > 0 && char.IsWhiteSpace(text[breakLength - 1]))
-            {
-                breakLength--;
-            }
-
-            return breakLength > 0 ? breakLength : maxLength;
-        }
-
-        private static int GetMaxFittingLength(string text, int maxWidthPixels, Font font, TextFormatFlags flags)
-        {
-            var low = 1;
-            var high = text.Length;
-            var best = 0;
-            while (low <= high)
-            {
-                var mid = low + ((high - low) / 2);
-                var candidate = text.Substring(0, mid);
-                if (MeasureTextWidth(candidate, font, flags) <= maxWidthPixels)
-                {
-                    best = mid;
-                    low = mid + 1;
-                }
-                else
-                {
-                    high = mid - 1;
-                }
-            }
-
-            return best;
-        }
-
-        private static string BuildEllipsisLine(string text, int maxWidthPixels, Font font, TextFormatFlags flags)
-        {
-            if (MeasureTextWidth(text, font, flags) <= maxWidthPixels)
-            {
-                return text;
-            }
-
-            for (int length = text.Length - 1; length >= 1; length--)
-            {
-                var candidate = text.Substring(0, length).TrimEnd() + "…";
-                if (MeasureTextWidth(candidate, font, flags) <= maxWidthPixels)
-                {
-                    return candidate;
-                }
-            }
-
-            return "…";
-        }
 
         private stdole.IPictureDisp GetMaterialImageForButton(int buttonOffset)
         {
@@ -1041,7 +865,7 @@ namespace BioDraw
         {
             if (item == null || string.IsNullOrWhiteSpace(item.FilePath))
             {
-                SetStatusText("BioDraw：当前素材不可删除。");
+                ImageReplacePipeline.SetStatusText("BioDraw：当前素材不可删除。");
                 return;
             }
 
@@ -1051,7 +875,7 @@ namespace BioDraw
                 materialSearchCacheRootPath = null;
                 materialSearchCacheEntries = null;
                 InvalidateMaterialPreview();
-                SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
+                ImageReplacePipeline.SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
                 return;
             }
 
@@ -1062,7 +886,7 @@ namespace BioDraw
                 materialSearchCacheRootPath = null;
                 materialSearchCacheEntries = null;
                 InvalidateMaterialPreview();
-                SetStatusText("BioDraw：已删除素材 - " + item.Name);
+                ImageReplacePipeline.SetStatusText("BioDraw：已删除素材 - " + item.Name);
             }
             catch (Exception ex)
             {
@@ -1074,7 +898,7 @@ namespace BioDraw
         {
             if (item == null || string.IsNullOrWhiteSpace(item.FilePath))
             {
-                SetStatusText("BioDraw：当前素材不可重命名。");
+                ImageReplacePipeline.SetStatusText("BioDraw：当前素材不可重命名。");
                 return;
             }
 
@@ -1084,7 +908,7 @@ namespace BioDraw
                 materialSearchCacheRootPath = null;
                 materialSearchCacheEntries = null;
                 InvalidateMaterialPreview();
-                SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
+                ImageReplacePipeline.SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
                 return;
             }
 
@@ -1124,7 +948,7 @@ namespace BioDraw
 
             if (string.Equals(targetPath, item.FilePath, StringComparison.Ordinal))
             {
-                SetStatusText("BioDraw：素材名称未变化。");
+                ImageReplacePipeline.SetStatusText("BioDraw：素材名称未变化。");
                 return;
             }
 
@@ -1147,7 +971,7 @@ namespace BioDraw
                 materialSearchCacheRootPath = null;
                 materialSearchCacheEntries = null;
                 InvalidateMaterialPreview();
-                SetStatusText("BioDraw：已重命名素材 - " + Path.GetFileNameWithoutExtension(targetPath));
+                ImageReplacePipeline.SetStatusText("BioDraw：已重命名素材 - " + Path.GetFileNameWithoutExtension(targetPath));
             }
             catch (Exception ex)
             {
@@ -1420,12 +1244,12 @@ namespace BioDraw
         {
             if (string.IsNullOrWhiteSpace(item.FilePath))
             {
-                SetStatusText("BioDraw：当前素材仅为占位项。");
+                ImageReplacePipeline.SetStatusText("BioDraw：当前素材仅为占位项。");
                 return;
             }
 
             string error;
-            if (!TryInsertMaterialToCurrentSlide(item.FilePath, out error))
+            if (!MaterialLibraryService.TryInsertMaterialToCurrentSlide(item.FilePath, out error))
             {
                 if (!string.IsNullOrWhiteSpace(error))
                 {
@@ -1434,7 +1258,7 @@ namespace BioDraw
                 return;
             }
 
-            SetStatusText("BioDraw：已插入素材 - " + item.Name);
+            ImageReplacePipeline.SetStatusText("BioDraw：已插入素材 - " + item.Name);
         }
 
         public void OnAbout(Office.IRibbonControl control)
@@ -1499,7 +1323,7 @@ namespace BioDraw
                 ribbon?.InvalidateControl("DdLevel2");
                 ribbon?.InvalidateControl("TxtMaterialSearch");
                 InvalidateMaterialPreview();
-                SetStatusText("BioDraw：素材库路径已更新。");
+                ImageReplacePipeline.SetStatusText("BioDraw：素材库路径已更新。");
             }
         }
 
@@ -1512,7 +1336,7 @@ namespace BioDraw
                 return;
             }
 
-            SetStatusText(message);
+            ImageReplacePipeline.SetStatusText(message);
         }
 
         public void OnManageLevel2Directory(Office.IRibbonControl control)
@@ -1524,7 +1348,7 @@ namespace BioDraw
                 return;
             }
 
-            SetStatusText(message);
+            ImageReplacePipeline.SetStatusText(message);
         }
 
         public void OnExecuteMaterialSearch(Office.IRibbonControl control)
@@ -1602,7 +1426,7 @@ namespace BioDraw
                 return false;
             }
 
-            var level1Name = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1Name = level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)];
             var level1Path = Path.Combine(materialLibraryPath, level1Name);
             if (!Directory.Exists(level1Path))
             {
@@ -1662,15 +1486,15 @@ namespace BioDraw
             materialPageIndex = 0;
 
             var level1List = GetLevel1List();
-            var level1Index = FindExactMatchIndex(level1List, preferredLevel1);
+            var level1Index = PresetManager.FindExactMatchIndex(level1List, preferredLevel1);
             selectedLevel1Index = level1Index >= 0 ? level1Index : 0;
 
             var level2List = GetLevel2List();
-            var level2Index = keepLevel2 ? FindExactMatchIndex(level2List, preferredLevel2) : -1;
+            var level2Index = keepLevel2 ? PresetManager.FindExactMatchIndex(level2List, preferredLevel2) : -1;
             selectedLevel2Index = level2Index >= 0 ? level2Index : 0;
 
-            level1InputText = level1List.Count > 0 ? level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)] : string.Empty;
-            level2InputText = level2List.Count > 0 ? level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)] : string.Empty;
+            level1InputText = level1List.Count > 0 ? level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)] : string.Empty;
+            level2InputText = level2List.Count > 0 ? level2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, level2List.Count)] : string.Empty;
 
             ribbon?.InvalidateControl("DdLevel1");
             ribbon?.InvalidateControl("DdLevel2");
@@ -1687,7 +1511,7 @@ namespace BioDraw
             embedContextAddToLibraryEnabled = pressed;
             SaveImageReplacePresets();
             ribbon?.Invalidate();
-            SetStatusText(pressed
+            ImageReplacePipeline.SetStatusText(pressed
                 ? "BioDraw：已启用右键菜单项 - 添加到 BioDraw 素材库。"
                 : "BioDraw：已停用右键菜单项 - 添加到 BioDraw 素材库。");
         }
@@ -1711,7 +1535,7 @@ namespace BioDraw
                 return;
             }
 
-            SetStatusText(message);
+            ImageReplacePipeline.SetStatusText(message);
         }
 
         public string GetApplyPresetLabel(Office.IRibbonControl control)
@@ -1727,7 +1551,7 @@ namespace BioDraw
         public string GetImageReplaceSourceColorText(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            return ToRibbonColorInputText(imageReplaceSourceColorInput);
+            return PresetManager.ToRibbonColorInputText(imageReplaceSourceColorInput);
         }
 
         public int GetImageReplaceSourceColorItemCount(Office.IRibbonControl control)
@@ -1752,19 +1576,19 @@ namespace BioDraw
         public int GetImageReplaceSourceColorSelectedIndex(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            var normalized = NormalizeColorInputText(imageReplaceSourceColorInput);
+            var normalized = PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput);
             if (string.IsNullOrEmpty(normalized))
             {
                 return 0;
             }
-            int idx = FindColorOptionIndex(imageReplaceSourceColorOptions, normalized);
+            int idx = PresetManager.FindColorOptionIndex(imageReplaceSourceColorOptions, normalized);
             return idx >= 0 ? idx + 1 : -1;
         }
 
         public string GetImageReplaceNewColorText(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            return ToRibbonColorInputText(imageReplaceNewColorInput);
+            return PresetManager.ToRibbonColorInputText(imageReplaceNewColorInput);
         }
 
         public int GetImageReplaceNewColorItemCount(Office.IRibbonControl control)
@@ -1789,25 +1613,25 @@ namespace BioDraw
         public int GetImageReplaceNewColorSelectedIndex(Office.IRibbonControl control)
         {
             EnsureImageReplaceInputValues();
-            var normalized = NormalizeColorInputText(imageReplaceNewColorInput);
+            var normalized = PresetManager.NormalizeColorInputText(imageReplaceNewColorInput);
             if (string.IsNullOrEmpty(normalized))
             {
                 return 0;
             }
-            int idx = FindColorOptionIndex(imageReplaceNewColorOptions, normalized);
+            int idx = PresetManager.FindColorOptionIndex(imageReplaceNewColorOptions, normalized);
             return idx >= 0 ? idx + 1 : -1;
         }
 
         public void OnImageReplaceSourceColorChanged(Office.IRibbonControl control, string text)
         {
-            imageReplaceSourceColorInput = ToStorageColorInputText(text);
+            imageReplaceSourceColorInput = PresetManager.ToStorageColorInputText(text);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
         }
 
         public void OnImageReplaceNewColorChanged(Office.IRibbonControl control, string text)
         {
-            imageReplaceNewColorInput = ToStorageColorInputText(text);
+            imageReplaceNewColorInput = PresetManager.ToStorageColorInputText(text);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
@@ -1821,7 +1645,7 @@ namespace BioDraw
                 return;
             }
 
-            imageReplaceSourceColorInput = ToStorageColorInputText(selectedColor);
+            imageReplaceSourceColorInput = PresetManager.ToStorageColorInputText(selectedColor);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
         }
@@ -1835,7 +1659,7 @@ namespace BioDraw
                 return;
             }
 
-            imageReplaceNewColorInput = ToStorageColorInputText(selectedColor);
+            imageReplaceNewColorInput = PresetManager.ToStorageColorInputText(selectedColor);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
@@ -1854,7 +1678,7 @@ namespace BioDraw
                 return;
             }
 
-            imageReplaceSourceColorInput = ToStorageColorInputText(colorToken);
+            imageReplaceSourceColorInput = PresetManager.ToStorageColorInputText(colorToken);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceSourceColor");
         }
@@ -1873,7 +1697,7 @@ namespace BioDraw
                 return;
             }
 
-            imageReplaceNewColorInput = ToStorageColorInputText(colorToken);
+            imageReplaceNewColorInput = PresetManager.ToStorageColorInputText(colorToken);
             PersistImageReplaceInputMemory();
             ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
@@ -1885,7 +1709,7 @@ namespace BioDraw
 
         public string GetImageReplacePresetItemLabel(Office.IRibbonControl control, int index)
         {
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             if (index >= 0 && index < ordered.Count)
             {
                 return ordered[index].Name;
@@ -1895,7 +1719,7 @@ namespace BioDraw
 
         public int GetImageReplacePresetSelectedIndex(Office.IRibbonControl control)
         {
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             if (ordered.Count == 0)
             {
                 return -1;
@@ -1906,7 +1730,7 @@ namespace BioDraw
 
         public string GetImageReplacePresetText(Office.IRibbonControl control)
         {
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             if (ordered.Count == 0)
             {
                 return string.Empty;
@@ -1921,7 +1745,7 @@ namespace BioDraw
 
         public void OnImageReplacePresetDropDownChanged(Office.IRibbonControl control, string selectedId, int selectedIndex)
         {
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             if (selectedIndex >= 0 && selectedIndex < ordered.Count)
             {
                 currentPresetName = ordered[selectedIndex].Name;
@@ -1932,9 +1756,9 @@ namespace BioDraw
 
         public void OnImageReplacePresetTextChanged(Office.IRibbonControl control, string text)
         {
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             var names = ordered.Select(x => x.Name).ToList();
-            var index = FindExactMatchIndex(names, text);
+            var index = PresetManager.FindExactMatchIndex(names, text);
             if (index < 0)
             {
                 return;
@@ -1974,16 +1798,23 @@ namespace BioDraw
                 return;
             }
 
-            List<dynamic> shapes;
-            if (!TryGetSelectedShapes(selection, out shapes))
+            List<dynamic> rawShapes;
+            if (!ImageReplacePipeline.TryGetSelectedShapes(selection, out rawShapes))
             {
                 MessageBox.Show("请先选中一张或多张图片。", "BioDraw");
                 return;
             }
 
+            var shapes = ImageReplacePipeline.FlattenToPictures(rawShapes);
+            if (shapes.Count == 0)
+            {
+                MessageBox.Show("选中组合中未找到图片。", "BioDraw");
+                return;
+            }
+
             EnsureImageReplaceInputValues();
-            var sourceColor = NormalizeColorInputText(imageReplaceSourceColorInput);
-            var newColor = NormalizeColorInputText(imageReplaceNewColorInput);
+            var sourceColor = PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput);
+            var newColor = PresetManager.NormalizeColorInputText(imageReplaceNewColorInput);
             if (string.IsNullOrWhiteSpace(sourceColor))
             {
                 MessageBox.Show("原色不能为空。", "BioDraw");
@@ -1994,7 +1825,7 @@ namespace BioDraw
             {
                 Name = preset?.Name ?? "临时预设",
                 SortOrder = preset?.SortOrder ?? 1,
-                FuzzPercent = NormalizeFuzzPercent(preset?.FuzzPercent ?? imageReplaceFuzzInput),
+                FuzzPercent = PresetManager.NormalizeFuzzPercent(preset?.FuzzPercent ?? imageReplaceFuzzInput),
                 TargetColor = sourceColor,
                 Mode = string.IsNullOrWhiteSpace(newColor) ? "transparent" : "fill",
                 ReplacementColor = string.IsNullOrWhiteSpace(newColor) ? "black" : newColor
@@ -2005,7 +1836,7 @@ namespace BioDraw
             var lastError = string.Empty;
             var replacedShapes = new List<dynamic>();
             string snapshotPath;
-            if (!TryCreatePresentationSnapshot(application, out snapshotPath, out lastError))
+            if (!ImageReplacePipeline.TryCreatePresentationSnapshot(application, out snapshotPath, out lastError))
             {
                 MessageBox.Show(lastError, "BioDraw");
                 return;
@@ -2015,7 +1846,7 @@ namespace BioDraw
             {
                 dynamic replacedShape;
                 string error;
-                if (!TryReplaceShapePictureWithMagick(shape, applyPreset, snapshotPath, out replacedShape, out error))
+                if (!ImageReplacePipeline.TryReplaceShapePictureWithMagick(shape, imageMagickPath, applyPreset, snapshotPath, out replacedShape, out error))
                 {
                     lastError = error;
                     failedCount++;
@@ -2028,8 +1859,8 @@ namespace BioDraw
                 replacedCount++;
             }
 
-            TryReselectShapes(replacedShapes);
-            TryDeleteFile(snapshotPath);
+            ImageReplacePipeline.TryReselectShapes(replacedShapes);
+            ImageReplacePipeline.TryDeleteFile(snapshotPath);
 
             if (replacedCount == 0)
             {
@@ -2039,10 +1870,10 @@ namespace BioDraw
 
             if (failedCount > 0)
             {
-                SetStatusText($"BioDraw：已替换 {replacedCount} 张，{failedCount} 张未处理。");
+                ImageReplacePipeline.SetStatusText($"BioDraw：已替换 {replacedCount} 张，{failedCount} 张未处理。");
                 return;
             }
-            SetStatusText($"BioDraw：已替换 {replacedCount} 张图片。");
+            ImageReplacePipeline.SetStatusText($"BioDraw：已替换 {replacedCount} 张图片。");
         }
 
         public void OnEditImageReplacePreset(Office.IRibbonControl control)
@@ -2051,13 +1882,13 @@ namespace BioDraw
             var preset = GetCurrentPreset();
             if (preset == null)
             {
-                preset = CreateDefaultPreset();
-                preset.Name = GenerateNewPresetName();
+                preset = PresetManager.CreateDefaultPreset();
+                preset.Name = PresetManager.GenerateNewPresetName(imageReplacePresets);
                 preset.SortOrder = Math.Max(1, imageReplacePresets.Count + 1);
-                preset.TargetColor = NormalizeColorInputText(imageReplaceSourceColorInput);
-                preset.Mode = HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
-                preset.ReplacementColor = HasVisibleColorText(imageReplaceNewColorInput) ? NormalizeColorInputText(imageReplaceNewColorInput) : "black";
-                preset.FuzzPercent = NormalizeFuzzPercent(imageReplaceFuzzInput);
+                preset.TargetColor = PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput);
+                preset.Mode = PresetManager.HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
+                preset.ReplacementColor = PresetManager.HasVisibleColorText(imageReplaceNewColorInput) ? PresetManager.NormalizeColorInputText(imageReplaceNewColorInput) : "black";
+                preset.FuzzPercent = PresetManager.NormalizeFuzzPercent(imageReplaceFuzzInput);
             }
 
             var canDelete = imageReplacePresets.Any(x => string.Equals(x.Name, preset.Name, StringComparison.OrdinalIgnoreCase));
@@ -2075,10 +1906,10 @@ namespace BioDraw
                 return;
             }
 
-            editedPreset.TargetColor = NormalizeColorInputText(imageReplaceSourceColorInput);
-            editedPreset.Mode = HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
-            editedPreset.ReplacementColor = HasVisibleColorText(imageReplaceNewColorInput) ? NormalizeColorInputText(imageReplaceNewColorInput) : "black";
-            editedPreset.FuzzPercent = NormalizeFuzzPercent(editedPreset.FuzzPercent);
+            editedPreset.TargetColor = PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput);
+            editedPreset.Mode = PresetManager.HasVisibleColorText(imageReplaceNewColorInput) ? "fill" : "transparent";
+            editedPreset.ReplacementColor = PresetManager.HasVisibleColorText(imageReplaceNewColorInput) ? PresetManager.NormalizeColorInputText(imageReplaceNewColorInput) : "black";
+            editedPreset.FuzzPercent = PresetManager.NormalizeFuzzPercent(editedPreset.FuzzPercent);
             imageReplaceFuzzInput = editedPreset.FuzzPercent;
             var isSameName = string.Equals(editedPreset.Name, preset.Name, StringComparison.OrdinalIgnoreCase);
             var nameAlreadyExists = imageReplacePresets.Any(x => string.Equals(x.Name, editedPreset.Name, StringComparison.OrdinalIgnoreCase));
@@ -2121,7 +1952,7 @@ namespace BioDraw
             }
 
             imageReplacePresets.RemoveAll(x => string.Equals(x.Name, presetName, StringComparison.OrdinalIgnoreCase));
-            NormalizePresetSortOrders();
+            PresetManager.NormalizePresetSortOrders(imageReplacePresets);
             EnsurePresetSelectionNames();
             SaveImageReplacePresets();
             SyncImageReplaceInputValuesFromCurrentPreset();
@@ -2132,7 +1963,7 @@ namespace BioDraw
         {
             var sb = new StringBuilder();
             sb.Append("<menu xmlns='http://schemas.microsoft.com/office/2009/07/customui'>");
-            foreach (var preset in GetPresetsInDisplayOrder())
+            foreach (var preset in PresetManager.GetPresetsInDisplayOrder(imageReplacePresets))
             {
                 var mark = string.Equals(preset.Name, currentPresetName, StringComparison.OrdinalIgnoreCase) ? " ✓" : string.Empty;
                 sb.Append("<button id='Preset_")
@@ -2327,18 +2158,6 @@ namespace BioDraw
             return null;
         }
 
-        private sealed class PictureConverter : AxHost
-        {
-            private PictureConverter() : base("")
-            {
-            }
-
-            public static stdole.IPictureDisp ToPictureDisp(Image image)
-            {
-                return (stdole.IPictureDisp)GetIPictureDispFromPicture(image);
-            }
-        }
-
         private static string XmlEscape(string value)
         {
             return SecurityElement.Escape(value) ?? string.Empty;
@@ -2382,7 +2201,7 @@ namespace BioDraw
             }
 
             imageReplaceSourceColorInput = preset.TargetColor ?? string.Empty;
-            imageReplaceFuzzInput = NormalizeFuzzPercent(preset.FuzzPercent);
+            imageReplaceFuzzInput = PresetManager.NormalizeFuzzPercent(preset.FuzzPercent);
             if (string.Equals(preset.Mode, "fill", StringComparison.OrdinalIgnoreCase))
             {
                 imageReplaceNewColorInput = preset.ReplacementColor ?? string.Empty;
@@ -2396,34 +2215,10 @@ namespace BioDraw
         {
             imageReplaceSourceColorOptions.Clear();
             imageReplaceNewColorOptions.Clear();
-            AddColorOption(imageReplaceSourceColorOptions, "white");
-            AddColorOption(imageReplaceNewColorOptions, "white");
+            PresetManager.AddColorOption(imageReplaceSourceColorOptions, "white");
+            PresetManager.AddColorOption(imageReplaceNewColorOptions, "white");
         }
 
-        private static bool IsLegacyDefaultColorOption(string value)
-        {
-            return string.Equals(value, "white", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "black", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "red", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "blue", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "green", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static void TrimLegacyDefaultColorOptions(List<string> options)
-        {
-            if (options == null || options.Count == 0)
-            {
-                return;
-            }
-
-            if (!options.All(IsLegacyDefaultColorOption))
-            {
-                return;
-            }
-
-            options.Clear();
-            options.Add("white");
-        }
 
         private void EnsureImageReplaceColorOptions()
         {
@@ -2433,126 +2228,15 @@ namespace BioDraw
             }
         }
 
-        private static string NormalizeColorInputText(string text)
-        {
-            var normalized = (text ?? string.Empty).Trim();
-            if (string.Equals(normalized, RibbonEmptyInputToken, StringComparison.Ordinal))
-            {
-                return string.Empty;
-            }
-            return normalized;
-        }
-
-        private static string ToStorageColorInputText(string text)
-        {
-            var normalized = NormalizeColorInputText(text);
-            return string.IsNullOrEmpty(normalized) ? RibbonEmptyInputToken : normalized;
-        }
-
-        private static bool HasVisibleColorText(string text)
-        {
-            return !string.IsNullOrWhiteSpace(NormalizeColorInputText(text));
-        }
-
-        private static string ToRibbonColorInputText(string text)
-        {
-            return ToStorageColorInputText(text);
-        }
-
-        private static int FindColorOptionIndex(List<string> options, string value)
-        {
-            if (options == null || options.Count == 0 || string.IsNullOrWhiteSpace(value))
-            {
-                return -1;
-            }
-
-            for (int i = 0; i < options.Count; i++)
-            {
-                if (string.Equals(options[i], value, StringComparison.OrdinalIgnoreCase))
-                {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
-        private static int FindExactMatchIndex(List<string> options, string value)
-        {
-            return FindColorOptionIndex(options, value);
-        }
-
-        private static bool AddColorOption(List<string> options, string value)
-        {
-            if (options == null)
-            {
-                return false;
-            }
-
-            var normalized = (value ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return false;
-            }
-
-            if (options.Any(x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
-
-            options.Add(normalized);
-            return true;
-        }
-
-        private static bool UpsertColorOptionAtPosition(List<string> options, string value, int oneBasedPosition)
-        {
-            if (options == null)
-            {
-                return false;
-            }
-
-            var normalized = (value ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return false;
-            }
-
-            var existingIndex = FindColorOptionIndex(options, normalized);
-            if (existingIndex >= 0)
-            {
-                options.RemoveAt(existingIndex);
-            }
-
-            var insertIndex = Math.Max(0, Math.Min(options.Count, oneBasedPosition - 1));
-            options.Insert(insertIndex, normalized);
-            return true;
-        }
-
-        private static bool RemoveColorOption(List<string> options, string value)
-        {
-            if (options == null || options.Count == 0 || string.IsNullOrWhiteSpace(value))
-            {
-                return false;
-            }
-
-            var index = FindColorOptionIndex(options, value);
-            if (index < 0)
-            {
-                return false;
-            }
-
-            options.RemoveAt(index);
-            return true;
-        }
-
         private bool ShowColorOptionManagerDialog(string title, List<string> options, string currentValue, bool allowEmpty, out string selectedValue)
         {
-            selectedValue = NormalizeColorInputText(currentValue);
+            selectedValue = PresetManager.NormalizeColorInputText(currentValue);
             if (options == null)
             {
                 return false;
             }
             var dialogSelectedValue = selectedValue;
-            var currentNormalizedValue = NormalizeColorInputText(currentValue);
+            var currentNormalizedValue = PresetManager.NormalizeColorInputText(currentValue);
             var latestCommittedValue = currentNormalizedValue;
 
             using (var dialog = new Form())
@@ -2641,7 +2325,7 @@ namespace BioDraw
                 Action syncSortOrderFromInput = () =>
                 {
                     var selected = (inputBox.Text ?? string.Empty).Trim();
-                    var index = FindColorOptionIndex(options, selected);
+                    var index = PresetManager.FindColorOptionIndex(options, selected);
                     if (index >= 0)
                     {
                         numSortOrder.Value = Math.Min(numSortOrder.Maximum, index + 1);
@@ -2661,7 +2345,7 @@ namespace BioDraw
                         listBox.Items.Add(option);
                     }
                     listBox.EndUpdate();
-                    var index = FindColorOptionIndex(options, selected);
+                    var index = PresetManager.FindColorOptionIndex(options, selected);
                     if (index >= 0)
                     {
                         listBox.SelectedIndex = index;
@@ -2748,7 +2432,7 @@ namespace BioDraw
                         return;
                     }
 
-                    var sourceIndex = FindColorOptionIndex(options, draggedValue);
+                    var sourceIndex = PresetManager.FindColorOptionIndex(options, draggedValue);
                     if (sourceIndex < 0)
                     {
                         return;
@@ -2817,7 +2501,7 @@ namespace BioDraw
                     }
 
                     var position = Convert.ToInt32(numSortOrder.Value, CultureInfo.InvariantCulture);
-                    UpsertColorOptionAtPosition(options, value, position);
+                    PresetManager.UpsertColorOptionAtPosition(options, value, position);
                     inputBox.Text = value;
                     dialogSelectedValue = value;
                     latestCommittedValue = value;
@@ -2834,7 +2518,7 @@ namespace BioDraw
                         return;
                     }
 
-                    if (!RemoveColorOption(options, value))
+                    if (!PresetManager.RemoveColorOption(options, value))
                     {
                         return;
                     }
@@ -2960,7 +2644,7 @@ namespace BioDraw
             }
 
             List<dynamic> shapes;
-            if (!TryGetSelectedShapes(selection, out shapes) || shapes.Count == 0)
+            if (!ImageReplacePipeline.TryGetSelectedShapes(selection, out shapes) || shapes.Count == 0)
             {
                 message = "请先选中一个或多个对象。";
                 return false;
@@ -2976,7 +2660,7 @@ namespace BioDraw
 
             string snapshotPath = null;
             string snapshotError = string.Empty;
-            if (!TryCreatePresentationSnapshot(app, out snapshotPath, out snapshotError))
+            if (!ImageReplacePipeline.TryCreatePresentationSnapshot(app, out snapshotPath, out snapshotError))
             {
                 snapshotPath = null;
             }
@@ -2999,7 +2683,7 @@ namespace BioDraw
                 }
             }
 
-            TryDeleteFile(snapshotPath);
+            ImageReplacePipeline.TryDeleteFile(snapshotPath);
             materialSearchCacheRootPath = null;
             materialSearchCacheEntries = null;
             materialPageIndex = 0;
@@ -3048,7 +2732,7 @@ namespace BioDraw
             }
 
             List<dynamic> shapes;
-            return TryGetSelectedShapes(selection, out shapes) && shapes.Count > 0;
+            return ImageReplacePipeline.TryGetSelectedShapes(selection, out shapes) && shapes.Count > 0;
         }
 
         private bool TryResolveCurrentMaterialTargetDirectory(out string targetDirectory, out string errorMessage)
@@ -3068,7 +2752,7 @@ namespace BioDraw
                 return false;
             }
 
-            var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1 = level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)];
             var level1Path = Path.Combine(materialLibraryPath, level1);
             Directory.CreateDirectory(level1Path);
 
@@ -3095,7 +2779,7 @@ namespace BioDraw
                 return true;
             }
 
-            var level2 = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+            var level2 = level2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, level2List.Count)];
             var level2Path = Path.Combine(level1Path, level2);
             Directory.CreateDirectory(level2Path);
             targetDirectory = level2Path;
@@ -3132,7 +2816,7 @@ namespace BioDraw
                 }
 
                 string sourcePath;
-                if (!TryExtractOriginalImageFromPptx(shape, snapshotPath, out sourcePath, out errorMessage))
+                if (!ImageReplacePipeline.TryExtractOriginalImageFromPptx(shape, snapshotPath, out sourcePath, out errorMessage))
                 {
                     return false;
                 }
@@ -3156,7 +2840,7 @@ namespace BioDraw
                 }
                 finally
                 {
-                    TryDeleteFile(sourcePath);
+                    ImageReplacePipeline.TryDeleteFile(sourcePath);
                 }
             }
 
@@ -3282,25 +2966,6 @@ namespace BioDraw
             ribbon?.InvalidateControl("TxtImageReplaceNewColor");
         }
 
-        private IEnumerable<ImageReplacePreset> GetPresetsInDisplayOrder()
-        {
-            return imageReplacePresets
-                .OrderBy(x => x.SortOrder)
-                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase);
-        }
-
-        private void NormalizePresetSortOrders()
-        {
-            var ordered = GetPresetsInDisplayOrder().ToList();
-            for (int i = 0; i < ordered.Count; i++)
-            {
-                ordered[i].SortOrder = i + 1;
-            }
-
-            imageReplacePresets.Clear();
-            imageReplacePresets.AddRange(ordered);
-        }
-
         private void EnsurePresetSelectionNames()
         {
             if (imageReplacePresets.Count == 0)
@@ -3334,7 +2999,7 @@ namespace BioDraw
             }
             imageReplacePresets.RemoveAll(x => string.Equals(x.Name, editedPreset.Name, StringComparison.OrdinalIgnoreCase));
 
-            var ordered = GetPresetsInDisplayOrder().ToList();
+            var ordered = PresetManager.GetPresetsInDisplayOrder(imageReplacePresets).ToList();
             var insertIndex = Math.Max(0, Math.Min(desiredSortOrder - 1, ordered.Count));
             ordered.Insert(insertIndex, editedPreset);
             for (int i = 0; i < ordered.Count; i++)
@@ -3344,20 +3009,6 @@ namespace BioDraw
 
             imageReplacePresets.Clear();
             imageReplacePresets.AddRange(ordered);
-        }
-
-        private string GenerateNewPresetName()
-        {
-            var baseName = "新预设";
-            var index = 1;
-            string name;
-            do
-            {
-                name = baseName + index.ToString(CultureInfo.InvariantCulture);
-                index++;
-            }
-            while (imageReplacePresets.Any(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)));
-            return name;
         }
 
         private void LoadImageReplacePresets()
@@ -3372,11 +3023,11 @@ namespace BioDraw
 
             if (!File.Exists(presetStorePath))
             {
-                var defaultPreset = CreateDefaultPreset();
+                var defaultPreset = PresetManager.CreateDefaultPreset();
                 imageReplacePresets.Add(defaultPreset);
                 defaultPresetName = defaultPreset.Name;
                 currentPresetName = defaultPresetName;
-                NormalizePresetSortOrders();
+                PresetManager.NormalizePresetSortOrders(imageReplacePresets);
                 EnsurePresetSelectionNames();
                 SyncImageReplaceInputValuesFromCurrentPreset();
                 return;
@@ -3393,24 +3044,25 @@ namespace BioDraw
                 defaultPresetName = (string)root.Attribute("Default");
                 currentPresetName = (string)root.Attribute("Current");
                 materialLibraryPath = (string)root.Attribute("MaterialLibraryPath") ?? string.Empty;
-                embedContextAddToLibraryEnabled = ParseBool((string)root.Attribute("EmbedContextAddToLibraryEnabled"));
-                imageReplaceFuzzInput = ParseFuzz((string)root.Attribute("ImageReplaceFuzzInput"));
-                materialPreviewCount = ParseMaterialPreviewCount((string)root.Attribute("MaterialPreviewCount"));
-                hasPresetEditorBounds = TryParseEditorBounds(root, out presetEditorBounds);
-                presetEditorSaveAsDefaultChecked = ParseBool((string)root.Attribute("EditorSaveAsDefault"));
+                imageMagickPath = (string)root.Attribute("ImageMagickPath") ?? string.Empty;
+                embedContextAddToLibraryEnabled = PresetManager.ParseBool((string)root.Attribute("EmbedContextAddToLibraryEnabled"));
+                imageReplaceFuzzInput = PresetManager.ParseFuzz((string)root.Attribute("ImageReplaceFuzzInput"));
+                materialPreviewCount = PresetManager.ParseMaterialPreviewCount((string)root.Attribute("MaterialPreviewCount"), MaterialPreviewButtonCount);
+                hasPresetEditorBounds = PresetManager.TryParseEditorBounds(root, out presetEditorBounds);
+                presetEditorSaveAsDefaultChecked = PresetManager.ParseBool((string)root.Attribute("EditorSaveAsDefault"));
 
                 foreach (var sourceOption in root.Elements("SourceColorOption"))
                 {
-                    AddColorOption(imageReplaceSourceColorOptions, (string)sourceOption.Attribute("Value"));
+                    PresetManager.AddColorOption(imageReplaceSourceColorOptions, (string)sourceOption.Attribute("Value"));
                 }
 
                 foreach (var newOption in root.Elements("NewColorOption"))
                 {
-                    AddColorOption(imageReplaceNewColorOptions, (string)newOption.Attribute("Value"));
+                    PresetManager.AddColorOption(imageReplaceNewColorOptions, (string)newOption.Attribute("Value"));
                 }
 
-                TrimLegacyDefaultColorOptions(imageReplaceSourceColorOptions);
-                TrimLegacyDefaultColorOptions(imageReplaceNewColorOptions);
+                PresetManager.TrimLegacyDefaultColorOptions(imageReplaceSourceColorOptions);
+                PresetManager.TrimLegacyDefaultColorOptions(imageReplaceNewColorOptions);
 
                 foreach (var xPreset in root.Elements("Preset"))
                 {
@@ -3420,8 +3072,8 @@ namespace BioDraw
                         TargetColor = (string)xPreset.Attribute("TargetColor") ?? "white",
                         Mode = (string)xPreset.Attribute("Mode") ?? "transparent",
                         ReplacementColor = (string)xPreset.Attribute("ReplacementColor") ?? "black",
-                        FuzzPercent = ParseFuzz((string)xPreset.Attribute("FuzzPercent")),
-                        SortOrder = ParseSortOrder((string)xPreset.Attribute("SortOrder"), imageReplacePresets.Count + 1)
+                        FuzzPercent = PresetManager.ParseFuzz((string)xPreset.Attribute("FuzzPercent")),
+                        SortOrder = PresetManager.ParseSortOrder((string)xPreset.Attribute("SortOrder"), imageReplacePresets.Count + 1)
                     };
                     imageReplacePresets.Add(preset);
                 }
@@ -3437,16 +3089,16 @@ namespace BioDraw
             }
             if (imageReplacePresets.Count == 0)
             {
-                var defaultPreset = CreateDefaultPreset();
+                var defaultPreset = PresetManager.CreateDefaultPreset();
                 imageReplacePresets.Add(defaultPreset);
                 defaultPresetName = defaultPreset.Name;
                 currentPresetName = defaultPresetName;
             }
 
-            NormalizePresetSortOrders();
+            PresetManager.NormalizePresetSortOrders(imageReplacePresets);
             EnsurePresetSelectionNames();
-            imageReplaceFuzzInput = NormalizeFuzzPercent(imageReplaceFuzzInput);
-            materialPreviewCount = ParseMaterialPreviewCount(materialPreviewCount.ToString(CultureInfo.InvariantCulture));
+            imageReplaceFuzzInput = PresetManager.NormalizeFuzzPercent(imageReplaceFuzzInput);
+            materialPreviewCount = PresetManager.ParseMaterialPreviewCount(materialPreviewCount.ToString(CultureInfo.InvariantCulture), MaterialPreviewButtonCount);
             EnsureImageReplaceColorOptions();
             SyncImageReplaceInputValuesFromCurrentPreset();
             // 始终默认启用“添加到 BioDraw 素材库”右键项，避免旧配置将其静默关闭。
@@ -3461,19 +3113,20 @@ namespace BioDraw
                 Directory.CreateDirectory(dir);
             }
 
-            NormalizePresetSortOrders();
+            PresetManager.NormalizePresetSortOrders(imageReplacePresets);
             EnsurePresetSelectionNames();
-            imageReplaceFuzzInput = NormalizeFuzzPercent(imageReplaceFuzzInput);
+            imageReplaceFuzzInput = PresetManager.NormalizeFuzzPercent(imageReplaceFuzzInput);
             EnsureImageReplaceColorOptions();
             var root = new XElement(
                 "Presets",
                 new XAttribute("Default", defaultPresetName ?? string.Empty),
                 new XAttribute("Current", currentPresetName ?? string.Empty),
                 new XAttribute("MaterialLibraryPath", materialLibraryPath ?? string.Empty),
+                new XAttribute("ImageMagickPath", imageMagickPath ?? string.Empty),
                 new XAttribute("EmbedContextAddToLibraryEnabled", embedContextAddToLibraryEnabled),
                 new XAttribute("MaterialPreviewCount", GetMaterialPageSize()),
-                new XAttribute("ImageReplaceSourceInput", NormalizeColorInputText(imageReplaceSourceColorInput)),
-                new XAttribute("ImageReplaceNewInput", NormalizeColorInputText(imageReplaceNewColorInput)),
+                new XAttribute("ImageReplaceSourceInput", PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput)),
+                new XAttribute("ImageReplaceNewInput", PresetManager.NormalizeColorInputText(imageReplaceNewColorInput)),
                 new XAttribute("ImageReplaceFuzzInput", imageReplaceFuzzInput.ToString("0.0", CultureInfo.InvariantCulture)),
                 new XAttribute("EditorSaveAsDefault", presetEditorSaveAsDefaultChecked),
                 imageReplaceSourceColorOptions.Select(x => new XElement(
@@ -3486,7 +3139,7 @@ namespace BioDraw
                     "Preset",
                     new XAttribute("Name", p.Name),
                     new XAttribute("SortOrder", p.SortOrder),
-                    new XAttribute("FuzzPercent", NormalizeFuzzPercent(p.FuzzPercent).ToString("0.0", CultureInfo.InvariantCulture)),
+                    new XAttribute("FuzzPercent", PresetManager.NormalizeFuzzPercent(p.FuzzPercent).ToString("0.0", CultureInfo.InvariantCulture)),
                     new XAttribute("TargetColor", p.TargetColor),
                     new XAttribute("Mode", p.Mode),
                     new XAttribute("ReplacementColor", p.ReplacementColor ?? "black"))));
@@ -3501,881 +3154,6 @@ namespace BioDraw
 
             var doc = new XDocument(root);
             doc.Save(presetStorePath);
-        }
-
-        private static ImageReplacePreset CreateDefaultPreset()
-        {
-            return new ImageReplacePreset
-            {
-                Name = "默认预设",
-                SortOrder = 1,
-                FuzzPercent = 5,
-                TargetColor = "white",
-                Mode = "transparent",
-                ReplacementColor = "black"
-            };
-        }
-
-        private static int ParseSortOrder(string sortText, int fallbackValue)
-        {
-            int sortOrder;
-            if (int.TryParse(sortText, NumberStyles.Integer, CultureInfo.InvariantCulture, out sortOrder) && sortOrder > 0)
-            {
-                return sortOrder;
-            }
-            return Math.Max(1, fallbackValue);
-        }
-
-        private static int ParseMaterialPreviewCount(string countText)
-        {
-            int count;
-            if (int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out count))
-            {
-                return Math.Max(1, Math.Min(MaterialPreviewButtonCount, count));
-            }
-            return 5;
-        }
-
-        private static double ParseFuzz(string fuzzText)
-        {
-            double fuzz;
-            if (double.TryParse(fuzzText, NumberStyles.Float, CultureInfo.InvariantCulture, out fuzz))
-            {
-                return NormalizeFuzzPercent(fuzz);
-            }
-            return 5;
-        }
-
-        private static double NormalizeFuzzPercent(double fuzz)
-        {
-            if (double.IsNaN(fuzz) || double.IsInfinity(fuzz))
-            {
-                return 5.0;
-            }
-            if (fuzz < 0)
-            {
-                fuzz = 0;
-            }
-            if (fuzz > 100)
-            {
-                fuzz = 100;
-            }
-            return Math.Round(fuzz, 1, MidpointRounding.AwayFromZero);
-        }
-
-        private static bool ParseBool(string boolText)
-        {
-            bool value;
-            if (bool.TryParse(boolText, out value))
-            {
-                return value;
-            }
-            return false;
-        }
-
-        private static bool TryParseEditorBounds(XElement root, out Rectangle bounds)
-        {
-            bounds = Rectangle.Empty;
-            if (root == null)
-            {
-                return false;
-            }
-
-            int x;
-            int y;
-            int w;
-            int h;
-            if (!int.TryParse((string)root.Attribute("EditorX"), NumberStyles.Integer, CultureInfo.InvariantCulture, out x) ||
-                !int.TryParse((string)root.Attribute("EditorY"), NumberStyles.Integer, CultureInfo.InvariantCulture, out y) ||
-                !int.TryParse((string)root.Attribute("EditorWidth"), NumberStyles.Integer, CultureInfo.InvariantCulture, out w) ||
-                !int.TryParse((string)root.Attribute("EditorHeight"), NumberStyles.Integer, CultureInfo.InvariantCulture, out h))
-            {
-                return false;
-            }
-
-            if (w < 620 || h < 360)
-            {
-                return false;
-            }
-
-            bounds = new Rectangle(x, y, w, h);
-            return true;
-        }
-
-        private bool RunImageMagickReplace(string sourcePath, string outputPath, ImageReplacePreset preset, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-
-            var arguments = new StringBuilder();
-            arguments.Append(QuoteArg(sourcePath));
-            arguments.Append(" -fuzz ");
-            arguments.Append(preset.FuzzPercent.ToString("0.##", CultureInfo.InvariantCulture));
-            arguments.Append("% ");
-
-            if (string.Equals(preset.Mode, "fill", StringComparison.OrdinalIgnoreCase))
-            {
-                arguments.Append("-fill ");
-                arguments.Append(QuoteArg(preset.ReplacementColor));
-                arguments.Append(" -opaque ");
-                arguments.Append(QuoteArg(preset.TargetColor));
-                arguments.Append(" ");
-            }
-            else
-            {
-                arguments.Append("-transparent ");
-                arguments.Append(QuoteArg(preset.TargetColor));
-                arguments.Append(" ");
-            }
-
-            var outputExtension = Path.GetExtension(outputPath);
-            if (IsJpegFormat(outputExtension))
-            {
-                arguments.Append("-quality 100 -sampling-factor 4:4:4 -interlace none ");
-            }
-
-            arguments.Append(QuoteArg(outputPath));
-
-            try
-            {
-                var processStartInfo = new ProcessStartInfo
-                {
-                    FileName = "magick",
-                    Arguments = arguments.ToString(),
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using (var process = Process.Start(processStartInfo))
-                {
-                    if (process == null)
-                    {
-                        errorMessage = "无法启动 ImageMagick。";
-                        return false;
-                    }
-
-                    var stdOut = process.StandardOutput.ReadToEnd();
-                    var stdErr = process.StandardError.ReadToEnd();
-                    process.WaitForExit();
-
-                    if (process.ExitCode != 0)
-                    {
-                        errorMessage = string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr;
-                        if (string.IsNullOrWhiteSpace(errorMessage))
-                        {
-                            errorMessage = "ImageMagick 执行失败。";
-                        }
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private static string QuoteArg(string value)
-        {
-            return "\"" + (value ?? string.Empty).Replace("\"", "\\\"") + "\"";
-        }
-
-        private bool TryGetSelectedShapes(dynamic selection, out List<dynamic> shapes)
-        {
-            shapes = new List<dynamic>();
-            try
-            {
-                var shapeRange = selection.ShapeRange;
-                if (shapeRange == null)
-                {
-                    return false;
-                }
-
-                var count = 0;
-                try
-                {
-                    count = (int)shapeRange.Count;
-                }
-                catch
-                {
-                }
-
-                if (count <= 0)
-                {
-                    return false;
-                }
-
-                for (int i = 1; i <= count; i++)
-                {
-                    shapes.Add(shapeRange[i]);
-                }
-
-                return shapes.Count > 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private bool TryReplaceShapePictureWithMagick(dynamic shape, ImageReplacePreset preset, string snapshotPath, out dynamic replacedShape, out string errorMessage)
-        {
-            replacedShape = null;
-            errorMessage = string.Empty;
-            if (shape == null)
-            {
-                errorMessage = "未找到可处理的图片。";
-                return false;
-            }
-
-            try
-            {
-                var type = 0;
-                try
-                {
-                    type = (int)shape.Type;
-                }
-                catch
-                {
-                }
-
-                if (type != 13)
-                {
-                    errorMessage = "选中对象不是图片。";
-                    return false;
-                }
-
-                string sourcePath;
-                if (!TryExtractOriginalImageFromPptx(shape, snapshotPath, out sourcePath, out errorMessage))
-                {
-                    return false;
-                }
-
-                var outputPath = BuildMagickOutputPath(sourcePath, preset);
-
-                if (!RunImageMagickReplace(sourcePath, outputPath, preset, out errorMessage))
-                {
-                    TryDeleteFile(sourcePath);
-                    return false;
-                }
-
-                if (!TryReplaceShapeImageInPlace(shape, outputPath, out replacedShape, out errorMessage))
-                {
-                    TryDeleteFile(sourcePath);
-                    TryDeleteFile(outputPath);
-                    return false;
-                }
-
-                TryDeleteFile(sourcePath);
-                TryDeleteFile(outputPath);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private static string BuildMagickOutputPath(string sourcePath, ImageReplacePreset preset)
-        {
-            var outputExtension = Path.GetExtension(sourcePath);
-            if (string.IsNullOrWhiteSpace(outputExtension))
-            {
-                outputExtension = ".png";
-            }
-
-            if (string.Equals(preset.Mode, "transparent", StringComparison.OrdinalIgnoreCase) &&
-                IsTransparencyUnsupportedFormat(outputExtension))
-            {
-                outputExtension = ".png";
-            }
-
-            return Path.Combine(
-                Path.GetDirectoryName(sourcePath) ?? Path.GetTempPath(),
-                Path.GetFileNameWithoutExtension(sourcePath) + "_magick" + outputExtension);
-        }
-
-        private static bool IsTransparencyUnsupportedFormat(string extension)
-        {
-            if (string.IsNullOrWhiteSpace(extension))
-            {
-                return true;
-            }
-
-            switch (extension.Trim().ToLowerInvariant())
-            {
-                case ".jpg":
-                case ".jpeg":
-                case ".jpe":
-                case ".jfif":
-                case ".bmp":
-                case ".dib":
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        private static bool IsJpegFormat(string extension)
-        {
-            if (string.IsNullOrWhiteSpace(extension))
-            {
-                return false;
-            }
-
-            switch (extension.Trim().ToLowerInvariant())
-            {
-                case ".jpg":
-                case ".jpeg":
-                case ".jpe":
-                case ".jfif":
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        private static bool TryGetPictureCropValues(dynamic shape, out float cropLeft, out float cropTop, out float cropRight, out float cropBottom)
-        {
-            cropLeft = 0f;
-            cropTop = 0f;
-            cropRight = 0f;
-            cropBottom = 0f;
-            try
-            {
-                cropLeft = (float)shape.PictureFormat.CropLeft;
-                cropTop = (float)shape.PictureFormat.CropTop;
-                cropRight = (float)shape.PictureFormat.CropRight;
-                cropBottom = (float)shape.PictureFormat.CropBottom;
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private bool TryExtractOriginalImageFromPptx(dynamic shape, string snapshotPath, out string filePath, out string errorMessage)
-        {
-            filePath = null;
-            errorMessage = string.Empty;
-
-            try
-            {
-                if (string.IsNullOrWhiteSpace(snapshotPath) || !File.Exists(snapshotPath))
-                {
-                    errorMessage = "无法读取当前演示文稿快照。";
-                    return false;
-                }
-
-                var tempDir = Path.Combine(Path.GetTempPath(), "BioDraw");
-                Directory.CreateDirectory(tempDir);
-
-                var slideIndex = (int)shape.Parent.SlideIndex;
-                var shapeId = (int)shape.Id;
-
-                using (var stream = new FileStream(snapshotPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                using (var archive = new ZipArchive(stream, ZipArchiveMode.Read, false))
-                {
-                    string slidePartPath;
-                    if (!TryResolveSlidePartPath(archive, slideIndex, out slidePartPath, out errorMessage))
-                    {
-                        return false;
-                    }
-
-                    string mediaPartPath;
-                    if (!TryResolveMediaPathForShape(archive, slidePartPath, shapeId, out mediaPartPath, out errorMessage))
-                    {
-                        return false;
-                    }
-
-                    var mediaEntry = archive.GetEntry(mediaPartPath);
-                    if (mediaEntry == null)
-                    {
-                        errorMessage = "未找到选中图片对应的媒体文件。";
-                        return false;
-                    }
-
-                    var ext = Path.GetExtension(mediaPartPath);
-                    if (string.IsNullOrWhiteSpace(ext))
-                    {
-                        ext = ".png";
-                    }
-
-                    var targetFilePath = Path.Combine(tempDir, "ppt_media_" + Guid.NewGuid().ToString("N") + ext);
-                    using (var entryStream = mediaEntry.Open())
-                    using (var output = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    {
-                        entryStream.CopyTo(output);
-                    }
-
-                    if (!File.Exists(targetFilePath) || new FileInfo(targetFilePath).Length <= 0)
-                    {
-                        errorMessage = "读取原始图片失败。";
-                        return false;
-                    }
-
-                    filePath = targetFilePath;
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private bool TryCreatePresentationSnapshot(dynamic application, out string snapshotPath, out string errorMessage)
-        {
-            snapshotPath = null;
-            errorMessage = string.Empty;
-            try
-            {
-                var presentation = application?.ActivePresentation;
-                if (presentation == null)
-                {
-                    errorMessage = "未找到当前演示文稿。";
-                    return false;
-                }
-
-                var tempDir = Path.Combine(Path.GetTempPath(), "BioDraw");
-                Directory.CreateDirectory(tempDir);
-                snapshotPath = Path.Combine(tempDir, "ppt_snapshot_" + Guid.NewGuid().ToString("N") + ".pptx");
-
-                presentation.SaveCopyAs(snapshotPath);
-                if (!File.Exists(snapshotPath) || new FileInfo(snapshotPath).Length <= 0)
-                {
-                    errorMessage = "无法创建演示文稿快照。";
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = "无法读取当前演示文稿，请确认文档已正常打开。 " + ex.Message;
-                snapshotPath = null;
-                return false;
-            }
-        }
-
-        private static void SetStatusText(string text)
-        {
-            _ = text;
-        }
-
-        private static bool TryResolveSlidePartPath(ZipArchive archive, int slideIndex, out string slidePartPath, out string errorMessage)
-        {
-            slidePartPath = null;
-            errorMessage = string.Empty;
-            try
-            {
-                var presentationEntry = archive.GetEntry("ppt/presentation.xml");
-                var presentationRelsEntry = archive.GetEntry("ppt/_rels/presentation.xml.rels");
-                if (presentationEntry == null || presentationRelsEntry == null)
-                {
-                    errorMessage = "PPTX 结构异常，找不到演示文稿索引。";
-                    return false;
-                }
-
-                XDocument presentationDoc;
-                XDocument relsDoc;
-                using (var stream = presentationEntry.Open())
-                {
-                    presentationDoc = XDocument.Load(stream);
-                }
-                using (var stream = presentationRelsEntry.Open())
-                {
-                    relsDoc = XDocument.Load(stream);
-                }
-
-                var p = (XNamespace)"http://schemas.openxmlformats.org/presentationml/2006/main";
-                var r = (XNamespace)"http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-
-                var slideIdNodes = presentationDoc.Descendants(p + "sldId").ToList();
-                if (slideIndex <= 0 || slideIndex > slideIdNodes.Count)
-                {
-                    errorMessage = "无法定位选中图片所在幻灯片。";
-                    return false;
-                }
-
-                var slideRid = (string)slideIdNodes[slideIndex - 1].Attribute(r + "id");
-                if (string.IsNullOrWhiteSpace(slideRid))
-                {
-                    errorMessage = "幻灯片关系索引缺失。";
-                    return false;
-                }
-
-                var rel = relsDoc.Root?
-                    .Elements()
-                    .FirstOrDefault(x => string.Equals((string)x.Attribute("Id"), slideRid, StringComparison.Ordinal));
-                var target = (string)rel?.Attribute("Target");
-                if (string.IsNullOrWhiteSpace(target))
-                {
-                    errorMessage = "幻灯片关系目标缺失。";
-                    return false;
-                }
-
-                slidePartPath = ResolveZipPartPath("ppt/presentation.xml", target);
-                if (archive.GetEntry(slidePartPath) == null)
-                {
-                    errorMessage = "未找到幻灯片数据。";
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private static bool TryResolveMediaPathForShape(ZipArchive archive, string slidePartPath, int shapeId, out string mediaPartPath, out string errorMessage)
-        {
-            mediaPartPath = null;
-            errorMessage = string.Empty;
-            try
-            {
-                var slideEntry = archive.GetEntry(slidePartPath);
-                var slideRelsPath = GetRelationshipPartPath(slidePartPath);
-                var slideRelsEntry = archive.GetEntry(slideRelsPath);
-                if (slideEntry == null || slideRelsEntry == null)
-                {
-                    errorMessage = "找不到幻灯片图片关系文件。";
-                    return false;
-                }
-
-                XDocument slideDoc;
-                XDocument relsDoc;
-                using (var stream = slideEntry.Open())
-                {
-                    slideDoc = XDocument.Load(stream);
-                }
-                using (var stream = slideRelsEntry.Open())
-                {
-                    relsDoc = XDocument.Load(stream);
-                }
-
-                var p = (XNamespace)"http://schemas.openxmlformats.org/presentationml/2006/main";
-                var a = (XNamespace)"http://schemas.openxmlformats.org/drawingml/2006/main";
-                var r = (XNamespace)"http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-
-                var targetPic = slideDoc.Descendants(p + "pic")
-                    .FirstOrDefault(pic =>
-                    {
-                        var idAttr = (string)pic
-                            .Element(p + "nvPicPr")?
-                            .Element(p + "cNvPr")?
-                            .Attribute("id");
-                        int idValue;
-                        return int.TryParse(idAttr, out idValue) && idValue == shapeId;
-                    });
-
-                if (targetPic == null)
-                {
-                    errorMessage = "无法定位选中图片对应的原始资源。";
-                    return false;
-                }
-
-                var embedRid = (string)targetPic
-                    .Element(p + "blipFill")?
-                    .Element(a + "blip")?
-                    .Attribute(r + "embed");
-                if (string.IsNullOrWhiteSpace(embedRid))
-                {
-                    errorMessage = "该图片不包含可提取的嵌入资源。";
-                    return false;
-                }
-
-                var rel = relsDoc.Root?
-                    .Elements()
-                    .FirstOrDefault(x => string.Equals((string)x.Attribute("Id"), embedRid, StringComparison.Ordinal));
-                var target = (string)rel?.Attribute("Target");
-                if (string.IsNullOrWhiteSpace(target))
-                {
-                    errorMessage = "未找到图片关系映射。";
-                    return false;
-                }
-
-                mediaPartPath = ResolveZipPartPath(slidePartPath, target);
-                if (archive.GetEntry(mediaPartPath) == null)
-                {
-                    errorMessage = "媒体文件不存在。";
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private static string ResolveZipPartPath(string basePartPath, string relativeTarget)
-        {
-            var normalizedBase = basePartPath.Replace("\\", "/");
-            var normalizedTarget = relativeTarget.Replace("\\", "/");
-
-            if (normalizedTarget.StartsWith("/", StringComparison.Ordinal))
-            {
-                return normalizedTarget.TrimStart('/');
-            }
-
-            var baseUri = new Uri("http://local/" + normalizedBase, UriKind.Absolute);
-            var resolvedUri = new Uri(baseUri, normalizedTarget);
-            return resolvedUri.AbsolutePath.TrimStart('/');
-        }
-
-        private static string GetRelationshipPartPath(string partPath)
-        {
-            var normalized = partPath.Replace("\\", "/");
-            var lastSlash = normalized.LastIndexOf('/');
-            if (lastSlash < 0)
-            {
-                return "_rels/" + normalized + ".rels";
-            }
-
-            var dir = normalized.Substring(0, lastSlash);
-            var file = normalized.Substring(lastSlash + 1);
-            return dir + "/_rels/" + file + ".rels";
-        }
-
-        private bool TryReplaceShapeImageInPlace(dynamic shape, string outputPath, out dynamic newShape, out string errorMessage)
-        {
-            newShape = null;
-            errorMessage = string.Empty;
-            try
-            {
-                if (!File.Exists(outputPath))
-                {
-                    errorMessage = "输出文件不存在。";
-                    return false;
-                }
-
-                var left = (float)shape.Left;
-                var top = (float)shape.Top;
-                var width = (float)shape.Width;
-                var height = (float)shape.Height;
-                var rotation = (float)shape.Rotation;
-                var zOrderPosition = (int)shape.ZOrderPosition;
-                var shapeName = string.Empty;
-                try
-                {
-                    shapeName = (string)shape.Name;
-                }
-                catch
-                {
-                }
-                var lockAspectRatio = 0;
-                try
-                {
-                    lockAspectRatio = (int)shape.LockAspectRatio;
-                }
-                catch
-                {
-                }
-
-                var cropLeft = 0f;
-                var cropTop = 0f;
-                var cropRight = 0f;
-                var cropBottom = 0f;
-                var hasCrop = TryGetPictureCropValues(shape, out cropLeft, out cropTop, out cropRight, out cropBottom) &&
-                    (Math.Abs(cropLeft) > 0.01f || Math.Abs(cropTop) > 0.01f || Math.Abs(cropRight) > 0.01f || Math.Abs(cropBottom) > 0.01f);
-
-                var insertionLeft = left;
-                var insertionTop = top;
-                var insertionWidth = width;
-                var insertionHeight = height;
-                if (hasCrop)
-                {
-                    insertionLeft = left - cropLeft;
-                    insertionTop = top - cropTop;
-                    insertionWidth = Math.Max(1f, width + cropLeft + cropRight);
-                    insertionHeight = Math.Max(1f, height + cropTop + cropBottom);
-                }
-
-                try
-                {
-                    var shapes = shape.Parent.Shapes;
-                    shape.Delete();
-
-                    newShape = shapes.AddPicture(
-                        outputPath,
-                        Microsoft.Office.Core.MsoTriState.msoFalse,
-                        Microsoft.Office.Core.MsoTriState.msoTrue,
-                        insertionLeft,
-                        insertionTop,
-                        insertionWidth,
-                        insertionHeight);
-
-                    try
-                    {
-                        if (!string.IsNullOrWhiteSpace(shapeName))
-                        {
-                            newShape.Name = shapeName;
-                        }
-                    }
-                    catch
-                    {
-                    }
-
-                    try
-                    {
-                        newShape.Rotation = rotation;
-                    }
-                    catch
-                    {
-                    }
-                    try
-                    {
-                        newShape.LockAspectRatio = lockAspectRatio;
-                    }
-                    catch
-                    {
-                    }
-
-                    if (hasCrop)
-                    {
-                        try
-                        {
-                            newShape.PictureFormat.CropLeft = cropLeft;
-                            newShape.PictureFormat.CropTop = cropTop;
-                            newShape.PictureFormat.CropRight = cropRight;
-                            newShape.PictureFormat.CropBottom = cropBottom;
-                        }
-                        catch
-                        {
-                        }
-                    }
-
-                    try
-                    {
-                        newShape.Left = left;
-                        newShape.Top = top;
-                        newShape.Width = width;
-                        newShape.Height = height;
-                    }
-                    catch
-                    {
-                    }
-
-                    try
-                    {
-                        var guard = 0;
-                        while ((int)newShape.ZOrderPosition > zOrderPosition && guard < 2048)
-                        {
-                            newShape.ZOrder(Microsoft.Office.Core.MsoZOrderCmd.msoSendBackward);
-                            guard++;
-                        }
-                    }
-                    catch
-                    {
-                    }
-                }
-                catch
-                {
-                    errorMessage = "替换图片失败。";
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                newShape = null;
-                return false;
-            }
-        }
-
-        private static void TryReselectShapes(List<dynamic> shapes)
-        {
-            if (shapes == null || shapes.Count == 0)
-            {
-                return;
-            }
-
-            try
-            {
-                if (shapes.Count == 1)
-                {
-                    shapes[0].Select();
-                    return;
-                }
-
-                var selectedCount = 0;
-                for (int i = 0; i < shapes.Count; i++)
-                {
-                    var shape = shapes[i];
-                    if (shape == null)
-                    {
-                        continue;
-                    }
-
-                    if (selectedCount == 0)
-                    {
-                        shape.Select(Microsoft.Office.Core.MsoTriState.msoTrue);
-                    }
-                    else
-                    {
-                        shape.Select(Microsoft.Office.Core.MsoTriState.msoFalse);
-                    }
-                    selectedCount++;
-                }
-
-                if (selectedCount > 1)
-                {
-                    return;
-                }
-
-                if (selectedCount == 1)
-                {
-                    return;
-                }
-
-                var parentShapes = shapes[0].Parent.Shapes;
-                var ids = new int[shapes.Count];
-                for (int i = 0; i < shapes.Count; i++)
-                {
-                    ids[i] = (int)shapes[i].Id;
-                }
-                var range = parentShapes.Range(ids);
-                range.Select();
-            }
-            catch
-            {
-                try
-                {
-                    shapes[0].Select();
-                }
-                catch
-                {
-                }
-            }
-        }
-
-        private static void TryDeleteFile(string path)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
-            catch
-            {
-            }
         }
 
         private bool ShowPresetEditorDialog(ImageReplacePreset source, bool canDelete, out ImageReplacePreset result, out bool setAsDefault, out bool deleteRequested)
@@ -4431,7 +3209,7 @@ namespace BioDraw
                 numFuzz.Maximum = 100;
                 numFuzz.DecimalPlaces = 1;
                 numFuzz.Increment = 0.1m;
-                numFuzz.Value = Convert.ToDecimal(NormalizeFuzzPercent(source.FuzzPercent), CultureInfo.InvariantCulture);
+                numFuzz.Value = Convert.ToDecimal(PresetManager.NormalizeFuzzPercent(source.FuzzPercent), CultureInfo.InvariantCulture);
                 numFuzz.BorderStyle = BorderStyle.FixedSingle;
                 numFuzz.TextAlign = HorizontalAlignment.Right;
 
@@ -4631,7 +3409,7 @@ namespace BioDraw
                     TargetColor = source.TargetColor,
                     Mode = source.Mode,
                     ReplacementColor = source.ReplacementColor,
-                    FuzzPercent = NormalizeFuzzPercent(Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture))
+                    FuzzPercent = PresetManager.NormalizeFuzzPercent(Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture))
                 };
                 setAsDefault = chkDefault.Checked;
                 presetEditorSaveAsDefaultChecked = chkDefault.Checked;
@@ -4701,7 +3479,7 @@ namespace BioDraw
                 }
 
                 List<dynamic> shapes = new List<dynamic>();
-                if (selection != null && TryGetSelectedShapes(selection, out shapes))
+                if (selection != null && ImageReplacePipeline.TryGetSelectedShapes(selection, out shapes))
                 {
                     previousShapes.AddRange(shapes);
                 }
@@ -4772,7 +3550,7 @@ namespace BioDraw
                 {
                 }
 
-                TryReselectShapes(previousShapes);
+                ImageReplacePipeline.TryReselectShapes(previousShapes);
             }
         }
 
@@ -5175,7 +3953,7 @@ namespace BioDraw
             }
         }
 
-        private static bool TryExecuteMso(dynamic app, IEnumerable<string> commandIds)
+        internal static bool TryExecuteMso(dynamic app, IEnumerable<string> commandIds)
         {
             if (app == null || commandIds == null)
             {
@@ -5224,93 +4002,6 @@ namespace BioDraw
             }
         }
 
-        [DllImport("user32.dll")]
-        private static extern short GetAsyncKeyState(int vKey);
-
-        [DllImport("user32.dll")]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr WindowFromPoint(POINT point);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
-
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetDC(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
-
-        [DllImport("gdi32.dll")]
-        private static extern uint GetPixel(IntPtr hdc, int nXPos, int nYPos);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO pIconInfo);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr CreateIconIndirect(ref ICONINFO icon);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool DestroyIcon(IntPtr hIcon);
-
-        [DllImport("gdi32.dll", SetLastError = true)]
-        private static extern bool DeleteObject(IntPtr hObject);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT
-        {
-            public int X;
-            public int Y;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int Left;
-            public int Top;
-            public int Right;
-            public int Bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct ICONINFO
-        {
-            [MarshalAs(UnmanagedType.Bool)]
-            public bool fIcon;
-            public int xHotspot;
-            public int yHotspot;
-            public IntPtr hbmMask;
-            public IntPtr hbmColor;
-        }
-
-        private static bool IsVirtualKeyDown(int keyCode)
-        {
-            return (GetAsyncKeyState(keyCode) & 0x8000) != 0;
-        }
-
-        private sealed class ImageReplacePreset
-        {
-            public string Name { get; set; }
-            public int SortOrder { get; set; }
-            public double FuzzPercent { get; set; }
-            public string TargetColor { get; set; }
-            public string Mode { get; set; }
-            public string ReplacementColor { get; set; }
-        }
-
-        private sealed class MaterialEntry
-        {
-            public string Name { get; set; }
-            public string FilePath { get; set; }
-        }
-
         private List<string> GetLevel1List()
         {
             if (!UseCustomMaterialLibrary())
@@ -5318,7 +4009,7 @@ namespace BioDraw
                 return level1Items.Count > 0 ? level1Items : new List<string> { "默认" };
             }
 
-            return GetSubDirectoryNames(materialLibraryPath);
+            return MaterialLibraryService.GetSubDirectoryNames(materialLibraryPath);
         }
 
         private List<string> GetLevel2List()
@@ -5331,13 +4022,13 @@ namespace BioDraw
                     return new List<string> { "默认" };
                 }
 
-                var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+                var level1 = level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)];
                 var level1Path = Path.Combine(materialLibraryPath, level1);
-                return GetSubDirectoryNames(level1Path);
+                return MaterialLibraryService.GetSubDirectoryNames(level1Path);
             }
 
             var fallbackLevel1List = GetLevel1List();
-            var fallbackLevel1 = fallbackLevel1List[NormalizeIndex(selectedLevel1Index, fallbackLevel1List.Count)];
+            var fallbackLevel1 = fallbackLevel1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, fallbackLevel1List.Count)];
             List<string> list;
             if (level2Items.TryGetValue(fallbackLevel1, out list) && list.Count > 0)
             {
@@ -5357,14 +4048,14 @@ namespace BioDraw
                     return new List<string> { "默认" };
                 }
 
-                var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
-                var level2 = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+                var level1 = level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)];
+                var level2 = level2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, level2List.Count)];
                 var level2Path = Path.Combine(materialLibraryPath, level1, level2);
-                return GetSubDirectoryNames(level2Path);
+                return MaterialLibraryService.GetSubDirectoryNames(level2Path);
             }
 
             var fallbackLevel2List = GetLevel2List();
-            var fallbackLevel2 = fallbackLevel2List[NormalizeIndex(selectedLevel2Index, fallbackLevel2List.Count)];
+            var fallbackLevel2 = fallbackLevel2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, fallbackLevel2List.Count)];
             List<string> list;
             if (level3Items.TryGetValue(fallbackLevel2, out list) && list.Count > 0)
             {
@@ -5394,7 +4085,7 @@ namespace BioDraw
                 return new List<MaterialEntry> { new MaterialEntry { Name = "默认", FilePath = string.Empty } };
             }
 
-            var level1 = level1List[NormalizeIndex(selectedLevel1Index, level1List.Count)];
+            var level1 = level1List[MaterialLibraryService.NormalizeIndex(selectedLevel1Index, level1List.Count)];
             var level1Path = Path.Combine(materialLibraryPath, level1);
             if (!Directory.Exists(level1Path))
             {
@@ -5414,12 +4105,12 @@ namespace BioDraw
 
             if (!hasSubDirectories)
             {
-                return GetMaterialEntriesFromFolder(level1Path);
+                return MaterialLibraryService.GetMaterialEntriesFromFolder(level1Path);
             }
 
-            var level2 = level2List[NormalizeIndex(selectedLevel2Index, level2List.Count)];
+            var level2 = level2List[MaterialLibraryService.NormalizeIndex(selectedLevel2Index, level2List.Count)];
             var level2Path = Path.Combine(level1Path, level2);
-            return GetMaterialEntriesFromFolder(level2Path);
+            return MaterialLibraryService.GetMaterialEntriesFromFolder(level2Path);
         }
 
         private List<MaterialEntry> SearchMaterialEntries(string keyword)
@@ -5473,7 +4164,7 @@ namespace BioDraw
             try
             {
                 materialSearchCacheEntries = Directory.GetFiles(materialLibraryPath, "*", SearchOption.AllDirectories)
-                    .Where(IsSupportedMaterialFile)
+                    .Where(MaterialLibraryService.IsSupportedMaterialFile)
                     .Select(path => new MaterialEntry
                     {
                         Name = Path.GetFileNameWithoutExtension(path),
@@ -5489,36 +4180,6 @@ namespace BioDraw
                 materialSearchCacheEntries = new List<MaterialEntry>();
                 return materialSearchCacheEntries;
             }
-        }
-
-        private static List<MaterialEntry> GetMaterialEntriesFromFolder(string folderPath)
-        {
-            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
-            {
-                return new List<MaterialEntry> { new MaterialEntry { Name = "默认", FilePath = string.Empty } };
-            }
-
-            try
-            {
-                var entries = Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
-                    .Where(IsSupportedMaterialFile)
-                    .Select(path => new MaterialEntry
-                    {
-                        Name = Path.GetFileNameWithoutExtension(path),
-                        FilePath = path
-                    })
-                    .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                if (entries.Count > 0)
-                {
-                    return entries;
-                }
-            }
-            catch
-            {
-            }
-
-            return new List<MaterialEntry> { new MaterialEntry { Name = "默认", FilePath = string.Empty } };
         }
 
         private stdole.IPictureDisp GetMaterialPreviewImage(MaterialEntry entry)
@@ -5542,7 +4203,7 @@ namespace BioDraw
             }
 
             Bitmap bitmap;
-            if (!TryBuildMaterialThumbnail(filePath, entry.Name, MaterialThumbnailWidth, MaterialThumbnailHeight, out bitmap))
+            if (!MaterialLibraryService.TryBuildMaterialThumbnail(filePath, entry.Name, MaterialThumbnailWidth, MaterialThumbnailHeight, out bitmap))
             {
                 return transparentPlaceholderImage ?? brandImageLarge ?? brandImageSmall;
             }
@@ -5552,219 +4213,23 @@ namespace BioDraw
                 picture = PictureConverter.ToPictureDisp(new Bitmap(bitmap));
             }
 
+            if (materialPreviewCache.Count >= MaterialPreviewCacheLimit)
+            {
+                try
+                {
+                    var keysToRemove = materialPreviewCache.Keys.Take(materialPreviewCache.Count / 2).ToList();
+                    foreach (var key in keysToRemove)
+                    {
+                        materialPreviewCache.Remove(key);
+                    }
+                }
+                catch
+                {
+                }
+            }
+
             materialPreviewCache[filePath] = picture;
             return picture;
-        }
-
-        private static bool TryBuildMaterialThumbnail(string filePath, string label, int width, int height, out Bitmap bitmap)
-        {
-            bitmap = null;
-            var safeWidth = Math.Max(24, width);
-            var safeHeight = Math.Max(24, height);
-
-            try
-            {
-                using (var image = Image.FromFile(filePath))
-                {
-                    bitmap = BuildThumbnailBitmap(image, safeWidth, safeHeight, label);
-                    return bitmap != null;
-                }
-            }
-            catch
-            {
-            }
-
-            return TryBuildMaterialThumbnailByPowerPoint(filePath, label, safeWidth, safeHeight, out bitmap);
-        }
-
-        private static Bitmap BuildThumbnailBitmap(Image image, int width, int height, string label)
-        {
-            var bitmap = new Bitmap(width, height);
-            var framePadding = 2f;
-            using (var graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.Clear(Color.White);
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                var frameRect = new RectangleF(0.5f, 0.5f, width - 1f, height - 1f);
-                var mediaRect = new RectangleF(
-                    framePadding,
-                    framePadding,
-                    width - (framePadding * 2f),
-                    height - (framePadding * 2f));
-
-                using (var pen = new Pen(Color.FromArgb(180, 180, 180), 1f))
-                {
-                    graphics.FillRectangle(Brushes.White, mediaRect);
-
-                    var scale = Math.Min(mediaRect.Width / Math.Max(1f, image.Width), mediaRect.Height / Math.Max(1f, image.Height));
-                    var drawWidth = Math.Max(1f, image.Width * scale);
-                    var drawHeight = Math.Max(1f, image.Height * scale);
-                    var x = mediaRect.Left + (mediaRect.Width - drawWidth) / 2f;
-                    var y = mediaRect.Top + (mediaRect.Height - drawHeight) / 2f;
-                    graphics.DrawImage(image, x, y, drawWidth, drawHeight);
-
-                    graphics.DrawRectangle(pen, frameRect.X, frameRect.Y, frameRect.Width, frameRect.Height);
-                }
-            }
-
-            return bitmap;
-        }
-
-        private static bool TryBuildMaterialThumbnailByPowerPoint(string filePath, string label, int width, int height, out Bitmap bitmap)
-        {
-            bitmap = null;
-            dynamic shape = null;
-            string tempPngPath = null;
-
-            try
-            {
-                var app = Globals.ThisAddIn?.Application;
-                if (app == null)
-                {
-                    return false;
-                }
-
-                dynamic slide = null;
-                try
-                {
-                    slide = app.ActiveWindow?.View?.Slide;
-                }
-                catch
-                {
-                }
-
-                if (slide == null)
-                {
-                    return false;
-                }
-
-                shape = slide.Shapes.AddPicture(
-                    filePath,
-                    Microsoft.Office.Core.MsoTriState.msoFalse,
-                    Microsoft.Office.Core.MsoTriState.msoTrue,
-                    -5000f,
-                    -5000f,
-                    -1f,
-                    -1f);
-
-                tempPngPath = Path.Combine(Path.GetTempPath(), "BioDraw", "material_thumb_" + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".png");
-                Directory.CreateDirectory(Path.GetDirectoryName(tempPngPath));
-                shape.Export(tempPngPath, 2);
-
-                using (var image = Image.FromFile(tempPngPath))
-                {
-                    bitmap = BuildThumbnailBitmap(image, width, height, label);
-                }
-
-                return bitmap != null;
-            }
-            catch
-            {
-                return false;
-            }
-            finally
-            {
-                try
-                {
-                    if (shape != null)
-                    {
-                        shape.Delete();
-                    }
-                }
-                catch
-                {
-                }
-
-                try
-                {
-                    if (!string.IsNullOrWhiteSpace(tempPngPath) && File.Exists(tempPngPath))
-                    {
-                        File.Delete(tempPngPath);
-                    }
-                }
-                catch
-                {
-                }
-            }
-        }
-
-        private bool TryInsertMaterialToCurrentSlide(string filePath, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
-            {
-                errorMessage = "素材文件不存在。";
-                return false;
-            }
-
-            try
-            {
-                var app = Globals.ThisAddIn?.Application;
-                if (app == null)
-                {
-                    errorMessage = "未能获取 PowerPoint 应用实例。";
-                    return false;
-                }
-
-                dynamic slide = null;
-                try
-                {
-                    slide = app.ActiveWindow?.View?.Slide;
-                }
-                catch
-                {
-                }
-
-                if (slide == null)
-                {
-                    errorMessage = "请先切换到普通编辑视图。";
-                    return false;
-                }
-
-                dynamic newShape = slide.Shapes.AddPicture(
-                    filePath,
-                    Microsoft.Office.Core.MsoTriState.msoFalse,
-                    Microsoft.Office.Core.MsoTriState.msoTrue,
-                    0f,
-                    0f,
-                    -1f,
-                    -1f);
-
-                var pageSetup = app.ActivePresentation?.PageSetup;
-                if (pageSetup != null)
-                {
-                    float slideWidth = (float)pageSetup.SlideWidth;
-                    float slideHeight = (float)pageSetup.SlideHeight;
-                    newShape.Left = (slideWidth - (float)newShape.Width) / 2f;
-                    newShape.Top = (slideHeight - (float)newShape.Height) / 2f;
-                }
-
-                if (string.Equals(Path.GetExtension(filePath), ".svg", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        newShape.Select();
-                        TryExecuteMso(app, new[] { "SVGEdit" });
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        private static bool IsSupportedMaterialFile(string filePath)
-        {
-            return materialFileExtensions.Contains(Path.GetExtension(filePath) ?? string.Empty);
         }
 
         private bool UseCustomMaterialLibrary()
@@ -5772,43 +4237,5 @@ namespace BioDraw
             return !string.IsNullOrWhiteSpace(materialLibraryPath) && Directory.Exists(materialLibraryPath);
         }
 
-        private static List<string> GetSubDirectoryNames(string folderPath)
-        {
-            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
-            {
-                return new List<string> { "默认" };
-            }
-
-            try
-            {
-                var names = Directory.GetDirectories(folderPath)
-                    .Select(Path.GetFileName)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                if (names.Count > 0)
-                {
-                    return names;
-                }
-            }
-            catch
-            {
-            }
-
-            return new List<string> { "默认" };
-        }
-
-        private static int NormalizeIndex(int index, int count)
-        {
-            if (count <= 0)
-            {
-                return 0;
-            }
-            if (index < 0 || index >= count)
-            {
-                return 0;
-            }
-            return index;
-        }
     }
 }

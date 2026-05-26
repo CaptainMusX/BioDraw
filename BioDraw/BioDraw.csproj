@@ -232,6 +232,12 @@
       <XmlRibbon>true</XmlRibbon>
     </Compile>
     <Compile Include="Ribbon1.cs" />
+    <Compile Include="ImageReplacePipeline.cs" />
+    <Compile Include="MaterialLibraryService.cs" />
+    <Compile Include="Models.cs" />
+    <Compile Include="NativeMethods.cs" />
+    <Compile Include="PictureConverter.cs" />
+    <Compile Include="PresetManager.cs" />
     <Compile Include="ThisAddIn.cs">
       <SubType>Code</SubType>
     </Compile>
