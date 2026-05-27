@@ -236,8 +236,20 @@
     <Compile Include="MaterialLibraryService.cs" />
     <Compile Include="Models.cs" />
     <Compile Include="NativeMethods.cs" />
-    <Compile Include="PictureConverter.cs" />
+    <Compile Include="PictureConverter.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="PresetManager.cs" />
+    <Compile Include="AiImageService.cs" />
+    <Compile Include="AiImageDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AiImageSettingsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AiGlobalSettingsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ThisAddIn.cs">
       <SubType>Code</SubType>
     </Compile>

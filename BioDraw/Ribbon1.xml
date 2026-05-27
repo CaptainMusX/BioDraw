@@ -232,6 +232,97 @@
             </box>
           </box>
         </group>
+        <group id="GroupRegion5" label="素材自绘">
+          <box id="AiImageRoot" boxStyle="horizontal">
+            <box id="AiModelColumn" boxStyle="horizontal">
+              <button id="BtnAiModel1" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage1" onAction="OnAiModelClick1"
+                getVisible="GetAiModelVisible1" getEnabled="GetAiModelEnabled1"
+                getScreentip="GetAiModelScreentip1" />
+              <button id="BtnAiModel2" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage2" onAction="OnAiModelClick2"
+                getVisible="GetAiModelVisible2" getEnabled="GetAiModelEnabled2"
+                getScreentip="GetAiModelScreentip2" />
+              <button id="BtnAiModel3" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage3" onAction="OnAiModelClick3"
+                getVisible="GetAiModelVisible3" getEnabled="GetAiModelEnabled3"
+                getScreentip="GetAiModelScreentip3" />
+              <button id="BtnAiModel4" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage4" onAction="OnAiModelClick4"
+                getVisible="GetAiModelVisible4" getEnabled="GetAiModelEnabled4"
+                getScreentip="GetAiModelScreentip4" />
+              <button id="BtnAiModel5" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage5" onAction="OnAiModelClick5"
+                getVisible="GetAiModelVisible5" getEnabled="GetAiModelEnabled5"
+                getScreentip="GetAiModelScreentip5" />
+              <button id="BtnAiModel6" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage6" onAction="OnAiModelClick6"
+                getVisible="GetAiModelVisible6" getEnabled="GetAiModelEnabled6"
+                getScreentip="GetAiModelScreentip6" />
+              <button id="BtnAiModel7" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage7" onAction="OnAiModelClick7"
+                getVisible="GetAiModelVisible7" getEnabled="GetAiModelEnabled7"
+                getScreentip="GetAiModelScreentip7" />
+              <button id="BtnAiModel8" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage8" onAction="OnAiModelClick8"
+                getVisible="GetAiModelVisible8" getEnabled="GetAiModelEnabled8"
+                getScreentip="GetAiModelScreentip8" />
+              <button id="BtnAiModel9" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage9" onAction="OnAiModelClick9"
+                getVisible="GetAiModelVisible9" getEnabled="GetAiModelEnabled9"
+                getScreentip="GetAiModelScreentip9" />
+              <button id="BtnAiModel10" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage10" onAction="OnAiModelClick10"
+                getVisible="GetAiModelVisible10" getEnabled="GetAiModelEnabled10"
+                getScreentip="GetAiModelScreentip10" />
+              <button id="BtnAiModel11" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage11" onAction="OnAiModelClick11"
+                getVisible="GetAiModelVisible11" getEnabled="GetAiModelEnabled11"
+                getScreentip="GetAiModelScreentip11" />
+              <button id="BtnAiModel12" size="large" showImage="true" showLabel="false"
+                getImage="GetAiModelImage12" onAction="OnAiModelClick12"
+                getVisible="GetAiModelVisible12" getEnabled="GetAiModelEnabled12"
+                getScreentip="GetAiModelScreentip12" />
+            </box>
+            <box id="AiConfigColumn" boxStyle="vertical">
+              <comboBox id="DdAiImageWidth"
+                label="宽度"
+                sizeString="XXXXXXX"
+                getItemCount="GetAiWidthItemCount"
+                getItemLabel="GetAiWidthItemLabel"
+                getText="GetAiWidthText"
+                onChange="OnAiWidthChanged" />
+              <comboBox id="DdAiImageHeight"
+                label="高度"
+                sizeString="XXXXXXX"
+                getItemCount="GetAiHeightItemCount"
+                getItemLabel="GetAiHeightItemLabel"
+                getText="GetAiHeightText"
+                onChange="OnAiHeightChanged" />
+              <comboBox id="EdAiImageQuality"
+                label="质量"
+                sizeString="XXXXXXX"
+                getItemCount="GetAiQualityItemCount"
+                getItemLabel="GetAiQualityItemLabel"
+                getText="GetAiQualityText"
+                onChange="OnAiQualityChanged" />
+            </box>
+            <box id="AiNavBox" boxStyle="vertical">
+              <button id="BtnAiModelPageUp"
+                showImage="true" getImage="GetAiPageButtonImage"
+                showLabel="false" onAction="OnAiModelPageUp" />
+              <button id="BtnAiModelPageDown"
+                showImage="true" getImage="GetAiPageButtonImage"
+                showLabel="false" onAction="OnAiModelPageDown" />
+              <button id="BtnAiGlobalSettings"
+                showImage="true"
+                showLabel="false"
+                getImage="GetSettingsButtonImage"
+                screentip="全局设置"
+                onAction="OnAiGlobalSettingsClick" />
+            </box>
+          </box>
+        </group>
       </tab>
     </tabs>
   </ribbon>
