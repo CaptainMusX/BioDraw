@@ -5,7 +5,7 @@ using System.Windows.Forms;
 
 namespace BioDraw
 {
-    internal sealed class AiGlobalSettingsDialog : Form
+    internal sealed class ImgGlobalSettingsDialog : Form
     {
         private readonly AiImageGlobalSettings _settings;
         private CheckBox _overrideCheck;
@@ -27,7 +27,7 @@ namespace BioDraw
         private static readonly string[] FormatOptions = { "PNG", "JPEG", "WebP" };
         private static readonly string[] FormatValues = { "png", "jpeg", "webp" };
 
-        public AiGlobalSettingsDialog(AiImageGlobalSettings settings)
+        public ImgGlobalSettingsDialog(AiImageGlobalSettings settings)
         {
             _settings = settings ?? AiImageService.CreateDefaultGlobalSettings();
             InitializeForm();
@@ -35,7 +35,7 @@ namespace BioDraw
 
         private void InitializeForm()
         {
-            Text = "文生图 全局设置";
+            Text = "图生图 全局设置";
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.Sizable;
             Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
@@ -59,7 +59,7 @@ namespace BioDraw
             {
                 Text = "通用配置优先于独立配置",
                 AutoSize = true,
-                Checked = _settings.OverridePerModel,
+                Checked = _settings.ImgOverridePerModel,
                 ForeColor = Color.FromArgb(43, 52, 69)
             };
 
@@ -70,7 +70,7 @@ namespace BioDraw
                 Minimum = 1,
                 Maximum = AiImageService.AiModelButtonCount,
                 DecimalPlaces = 0,
-                Value = Math.Max(1, Math.Min(AiImageService.AiModelButtonCount, _settings.ModelPreviewCount)),
+                Value = Math.Max(1, Math.Min(AiImageService.AiModelButtonCount, _settings.ImgModelPreviewCount)),
                 BorderStyle = BorderStyle.FixedSingle,
                 TextAlign = HorizontalAlignment.Right,
                 BackColor = Color.White,
@@ -87,23 +87,23 @@ namespace BioDraw
                 SmallChange = 1,
                 LargeChange = 1,
                 AutoSize = false,
-                Value = Math.Max(1, Math.Min(AiImageService.AiModelButtonCount, _settings.ModelPreviewCount))
+                Value = Math.Max(1, Math.Min(AiImageService.AiModelButtonCount, _settings.ImgModelPreviewCount))
             };
             _previewCountSlider.ValueChanged += OnPreviewSliderChanged;
 
             var lblWidth = new Label { Text = "宽度", TextAlign = ContentAlignment.MiddleRight };
-            _widthCombo = CreateEditableCombo(AiSizeOptions, GetClosestSizeIndex(_settings.DefaultWidth));
-            _widthCombo.Text = _settings.DefaultWidth.ToString(CultureInfo.InvariantCulture);
+            _widthCombo = CreateEditableCombo(AiSizeOptions, GetClosestSizeIndex(_settings.ImgDefaultWidth));
+            _widthCombo.Text = _settings.ImgDefaultWidth.ToString(CultureInfo.InvariantCulture);
 
             var lblHeight = new Label { Text = "高度", TextAlign = ContentAlignment.MiddleRight };
-            _heightCombo = CreateEditableCombo(AiSizeOptions, GetClosestSizeIndex(_settings.DefaultHeight));
-            _heightCombo.Text = _settings.DefaultHeight.ToString(CultureInfo.InvariantCulture);
+            _heightCombo = CreateEditableCombo(AiSizeOptions, GetClosestSizeIndex(_settings.ImgDefaultHeight));
+            _heightCombo.Text = _settings.ImgDefaultHeight.ToString(CultureInfo.InvariantCulture);
 
             var lblQuality = new Label { Text = "质量", TextAlign = ContentAlignment.MiddleRight };
-            _qualityCombo = CreateCombo(QualityOptions, GetQualityIndex(_settings.DefaultQuality));
+            _qualityCombo = CreateCombo(QualityOptions, GetQualityIndex(_settings.ImgDefaultQuality));
 
             var lblFormat = new Label { Text = "格式", TextAlign = ContentAlignment.MiddleRight };
-            _formatCombo = CreateCombo(FormatOptions, GetFormatIndex(_settings.DefaultFormat));
+            _formatCombo = CreateCombo(FormatOptions, GetFormatIndex(_settings.ImgDefaultFormat));
 
             var btnSave = new Button
             {
@@ -238,19 +238,19 @@ namespace BioDraw
 
         private void OnSaveClick(object sender, EventArgs e)
         {
-            _settings.OverridePerModel = _overrideCheck.Checked;
-            _settings.ModelPreviewCount = AiImageService.ClampModelPreviewCount((int)_previewCountNum.Value);
+            _settings.ImgOverridePerModel = _overrideCheck.Checked;
+            _settings.ImgModelPreviewCount = AiImageService.ClampModelPreviewCount((int)_previewCountNum.Value);
 
             if (int.TryParse((_widthCombo.Text ?? string.Empty).Trim(), NumberStyles.Integer,
                 CultureInfo.InvariantCulture, out int w) && w > 0)
-                _settings.DefaultWidth = Math.Max(1, Math.Min(4096, w));
+                _settings.ImgDefaultWidth = Math.Max(1, Math.Min(4096, w));
 
             if (int.TryParse((_heightCombo.Text ?? string.Empty).Trim(), NumberStyles.Integer,
                 CultureInfo.InvariantCulture, out int h) && h > 0)
-                _settings.DefaultHeight = Math.Max(1, Math.Min(4096, h));
+                _settings.ImgDefaultHeight = Math.Max(1, Math.Min(4096, h));
 
-            _settings.DefaultQuality = QualityValues[_qualityCombo.SelectedIndex];
-            _settings.DefaultFormat = FormatValues[_formatCombo.SelectedIndex];
+            _settings.ImgDefaultQuality = QualityValues[_qualityCombo.SelectedIndex];
+            _settings.ImgDefaultFormat = FormatValues[_formatCombo.SelectedIndex];
 
             DialogResult = DialogResult.OK;
             Close();

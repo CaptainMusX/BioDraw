@@ -60,6 +60,7 @@ namespace BioDraw
         private const string SettingsGearResourceName = "BioDraw.BioDrawIcon.settings-gear.png";
         private const string BrandPngResourceName = "BioDraw.BioDrawIcon.BioDraw.png";
         private const string ImageRecolorResourceName = "BioDraw.BioDrawIcon.image-recolor.png";
+        private const string PlusPngResourceName = "BioDraw.BioDrawIcon.plus.png";
         private const string PickerColorFileName = "picker-color.png";
         private const string LegacyPickerColorFileName = "Picker_color .png";
         private const string BrandPngFileName = "BioDraw.png";
@@ -79,6 +80,7 @@ namespace BioDraw
         private stdole.IPictureDisp settingsButtonImage;
         private stdole.IPictureDisp imageRecolorButtonImage;
         private stdole.IPictureDisp aiImageButtonImage;
+        private stdole.IPictureDisp plusButtonImage;
         private stdole.IPictureDisp addToLibraryContextMenuImage;
         private stdole.IPictureDisp pageUpButtonImage;
         private stdole.IPictureDisp pageDownButtonImage;
@@ -112,6 +114,14 @@ namespace BioDraw
         private bool hasAiSettingsDialogBounds;
         private Rectangle aiGlobalSettingsDialogBounds;
         private bool hasAiGlobalSettingsDialogBounds;
+        private Rectangle imgGlobalSettingsDialogBounds;
+        private bool hasImgGlobalSettingsDialogBounds;
+        private int imgModelPageIndex;
+        private int imgModelPreviewCount;
+        private int selectedImgModelIndex;
+        private string imgWidthInputText;
+        private string imgHeightInputText;
+        private string imgQualityInputText;
 
         public Ribbon1()
         {
@@ -135,14 +145,23 @@ namespace BioDraw
             aiWidthInputText = string.Empty;
             aiHeightInputText = string.Empty;
             aiQualityInputText = string.Empty;
+            imgModelPageIndex = 0;
+            imgModelPreviewCount = AiImageService.ClampModelPreviewCount(aiGlobalSettings.ImgModelPreviewCount);
+            selectedImgModelIndex = 0;
+            imgWidthInputText = string.Empty;
+            imgHeightInputText = string.Empty;
+            imgQualityInputText = string.Empty;
             aiModelIconCache = new Dictionary<string, stdole.IPictureDisp>(StringComparer.OrdinalIgnoreCase);
             aiSettingsDialogBounds = Rectangle.Empty;
             hasAiSettingsDialogBounds = false;
             aiGlobalSettingsDialogBounds = Rectangle.Empty;
             hasAiGlobalSettingsDialogBounds = false;
-            AiImageService.TryParseSettingsBounds(out aiSettingsDialogBounds, out aiGlobalSettingsDialogBounds);
+            imgGlobalSettingsDialogBounds = Rectangle.Empty;
+            hasImgGlobalSettingsDialogBounds = false;
+            AiImageService.TryParseSettingsBounds(out aiSettingsDialogBounds, out aiGlobalSettingsDialogBounds, out imgGlobalSettingsDialogBounds);
             hasAiSettingsDialogBounds = aiSettingsDialogBounds != Rectangle.Empty;
             hasAiGlobalSettingsDialogBounds = aiGlobalSettingsDialogBounds != Rectangle.Empty;
+            hasImgGlobalSettingsDialogBounds = imgGlobalSettingsDialogBounds != Rectangle.Empty;
             materialLibraryPath = string.Empty;
             imageMagickPath = string.Empty;
             level1InputText = string.Empty;
@@ -425,7 +444,7 @@ namespace BioDraw
             EnsureBrandImages();
             var entry = GetAiModelEntryForButton(buttonOffset);
             if (entry == null)
-                return aiImageButtonImage ?? brandImageLarge ?? brandImageSmall;
+                return plusButtonImage ?? aiImageButtonImage ?? brandImageLarge ?? brandImageSmall;
             return GetAiModelIcon(entry);
         }
 
@@ -2146,6 +2165,33 @@ namespace BioDraw
                 ?? AiImageService.CreateDefaultSettings();
         }
 
+        private AiImageApiSettings GetEffectiveImgSettings()
+        {
+            if (aiGlobalSettings != null && aiGlobalSettings.ImgOverridePerModel)
+            {
+                return new AiImageApiSettings
+                {
+                    DisplayName = "全局",
+                    EndpointUrl = aiImageSettingsList?.FirstOrDefault()?.EndpointUrl ?? string.Empty,
+                    ApiToken = aiImageSettingsList?.FirstOrDefault()?.ApiToken ?? string.Empty,
+                    Model = aiImageSettingsList?.FirstOrDefault()?.Model ?? string.Empty,
+                    DefaultWidth = aiGlobalSettings.ImgDefaultWidth,
+                    DefaultHeight = aiGlobalSettings.ImgDefaultHeight,
+                    DefaultQuality = aiGlobalSettings.ImgDefaultQuality,
+                    DefaultFormat = aiGlobalSettings.ImgDefaultFormat,
+                    IconPath = string.Empty,
+                    LockAspectRatio = false
+                };
+            }
+            if (selectedImgModelIndex >= 0
+                && (aiImageSettingsList?.Count ?? 0) > selectedImgModelIndex)
+            {
+                return aiImageSettingsList[selectedImgModelIndex];
+            }
+            return aiImageSettingsList?.FirstOrDefault()
+                ?? AiImageService.CreateDefaultSettings();
+        }
+
         // ---- 可见性 ----
 
         public bool GetAiModelVisible1(Office.IRibbonControl control) { return IsAiModelButtonVisible(0); }
@@ -2191,14 +2237,38 @@ namespace BioDraw
         public string GetAiModelScreentip11(Office.IRibbonControl control) { return GetAiModelTooltip(10); }
         public string GetAiModelScreentip12(Office.IRibbonControl control) { return GetAiModelTooltip(11); }
 
+        // ---- 文生图 标签 ----
+
+        public string GetAiModelLabel1(Office.IRibbonControl control) { return GetAiModelLabel(0); }
+        public string GetAiModelLabel2(Office.IRibbonControl control) { return GetAiModelLabel(1); }
+        public string GetAiModelLabel3(Office.IRibbonControl control) { return GetAiModelLabel(2); }
+        public string GetAiModelLabel4(Office.IRibbonControl control) { return GetAiModelLabel(3); }
+        public string GetAiModelLabel5(Office.IRibbonControl control) { return GetAiModelLabel(4); }
+        public string GetAiModelLabel6(Office.IRibbonControl control) { return GetAiModelLabel(5); }
+        public string GetAiModelLabel7(Office.IRibbonControl control) { return GetAiModelLabel(6); }
+        public string GetAiModelLabel8(Office.IRibbonControl control) { return GetAiModelLabel(7); }
+        public string GetAiModelLabel9(Office.IRibbonControl control) { return GetAiModelLabel(8); }
+        public string GetAiModelLabel10(Office.IRibbonControl control) { return GetAiModelLabel(9); }
+        public string GetAiModelLabel11(Office.IRibbonControl control) { return GetAiModelLabel(10); }
+        public string GetAiModelLabel12(Office.IRibbonControl control) { return GetAiModelLabel(11); }
+
+        private string GetAiModelLabel(int buttonOffset)
+        {
+            var entry = GetAiModelEntryForButton(buttonOffset);
+            if (entry == null) return "+";
+            return string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? (entry.Model ?? "未命名")
+                : entry.DisplayName;
+        }
+
         private string GetAiModelTooltip(int buttonOffset)
         {
             var entry = GetAiModelEntryForButton(buttonOffset);
             if (entry == null)
-                return "无模型";
-            return string.IsNullOrWhiteSpace(entry.DisplayName)
+                return "文生图 — 无模型（Ctrl+单击添加）";
+            return "文生图 — " + (string.IsNullOrWhiteSpace(entry.DisplayName)
                 ? (entry.Model ?? "未知模型")
-                : entry.DisplayName + " (" + (entry.Model ?? "未知") + ")";
+                : entry.DisplayName + " (" + (entry.Model ?? "未知") + ")");
         }
 
         // ---- 点击 ----
@@ -2469,6 +2539,38 @@ namespace BioDraw
             }
         }
 
+        public void OnImgGlobalSettingsClick(Office.IRibbonControl control)
+        {
+            var settingsList = aiImageSettingsList ?? AiImageService.LoadModelSettings();
+            aiImageSettingsList = settingsList;
+            aiGlobalSettings = aiGlobalSettings ?? AiImageService.LoadGlobalSettings();
+
+            using (var dialog = new ImgGlobalSettingsDialog(aiGlobalSettings))
+            {
+                if (hasImgGlobalSettingsDialogBounds)
+                {
+                    dialog.StartPosition = FormStartPosition.Manual;
+                    dialog.Bounds = imgGlobalSettingsDialogBounds;
+                }
+                dialog.FormClosed += (s, e) =>
+                {
+                    imgGlobalSettingsDialogBounds = dialog.Bounds;
+                    hasImgGlobalSettingsDialogBounds = true;
+                };
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    imgModelPreviewCount = AiImageService.ClampModelPreviewCount(aiGlobalSettings.ImgModelPreviewCount);
+                    imgModelPageIndex = 0;
+                    imgWidthInputText = string.Empty;
+                    imgHeightInputText = string.Empty;
+                    imgQualityInputText = string.Empty;
+                    AiImageService.SaveSettings(settingsList, aiGlobalSettings);
+                    AiImageService.SaveSettingsBounds(null, null, imgGlobalSettingsDialogBounds);
+                    InvalidateImgModelControls();
+                }
+            }
+        }
+
         // ---- 模型图标 ----
 
         private stdole.IPictureDisp GetAiModelIcon(AiImageApiSettings entry)
@@ -2490,11 +2592,404 @@ namespace BioDraw
             if (icon == null)
             {
                 EnsureBrandImages();
-                icon = aiImageButtonImage ?? brandImageLarge ?? brandImageSmall;
+                icon = plusButtonImage ?? aiImageButtonImage ?? brandImageLarge ?? brandImageSmall;
             }
 
             aiModelIconCache[cacheKey] = icon;
             return icon;
+        }
+
+        #endregion
+
+        #region 图生图 分页与回调
+
+        private int GetImgModelPageSize()
+        {
+            return Math.Max(1, Math.Min(AiImageService.AiModelButtonCount, imgModelPreviewCount));
+        }
+
+        private void EnsureImgModelPageIndexRange()
+        {
+            var list = aiImageSettingsList ?? new List<AiImageApiSettings>();
+            var pageSize = GetImgModelPageSize();
+            var totalPages = Math.Max(1, (int)Math.Ceiling((double)list.Count / pageSize));
+            imgModelPageIndex = Math.Max(0, Math.Min(imgModelPageIndex, totalPages - 1));
+        }
+
+        private AiImageApiSettings GetImgModelEntryForButton(int buttonOffset)
+        {
+            var list = aiImageSettingsList ?? new List<AiImageApiSettings>();
+            var pageSize = GetImgModelPageSize();
+            EnsureImgModelPageIndexRange();
+            if (buttonOffset < 0 || buttonOffset >= pageSize) return null;
+            int index = imgModelPageIndex * pageSize + buttonOffset;
+            return index >= 0 && index < list.Count ? list[index] : null;
+        }
+
+        private bool IsImgModelButtonVisible(int buttonOffset)
+        {
+            return buttonOffset >= 0 && buttonOffset < GetImgModelPageSize();
+        }
+
+        private bool IsImageSelected()
+        {
+            try
+            {
+                dynamic app = Globals.ThisAddIn?.Application;
+                if (app == null) return false;
+                dynamic sel = null;
+                try { sel = app.ActiveWindow?.Selection; } catch { return false; }
+                if (sel == null || sel.Type != 2) return false; // ppSelectionShapes = 2
+                if (sel.ShapeRange.Count < 1) return false;
+                dynamic shape = sel.ShapeRange[1];
+                if (shape.Type == 13 || shape.Type == 11) return true; // msoPicture, msoLinkedPicture
+                if (shape.Type == 6) // msoGroup — check first picture child
+                {
+                    try
+                    {
+                        foreach (var child in shape.GroupItems)
+                        {
+                            if (child.Type == 13 || child.Type == 11) return true;
+                        }
+                    }
+                    catch { }
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        internal void InvalidateImgModelControls()
+        {
+            if (ribbon == null) return;
+            ribbon.InvalidateControl("BtnImgModel1");
+            ribbon.InvalidateControl("BtnImgModel2");
+            ribbon.InvalidateControl("BtnImgModel3");
+            ribbon.InvalidateControl("BtnImgModel4");
+            ribbon.InvalidateControl("BtnImgModel5");
+            ribbon.InvalidateControl("BtnImgModel6");
+            ribbon.InvalidateControl("BtnImgModel7");
+            ribbon.InvalidateControl("BtnImgModel8");
+            ribbon.InvalidateControl("BtnImgModel9");
+            ribbon.InvalidateControl("BtnImgModel10");
+            ribbon.InvalidateControl("BtnImgModel11");
+            ribbon.InvalidateControl("BtnImgModel12");
+            ribbon.InvalidateControl("DdImgImageWidth");
+            ribbon.InvalidateControl("DdImgImageHeight");
+            ribbon.InvalidateControl("EdImgImageQuality");
+            ribbon.InvalidateControl("BtnImgModelPageUp");
+            ribbon.InvalidateControl("BtnImgModelPageDown");
+        }
+
+        private void GetImgDefaultDimensions(out int width, out int height)
+        {
+            AiImageService.GetSelectedImageDimensions(out int srcW, out int srcH);
+            if (srcW <= 0 || srcH <= 0)
+            {
+                width = 1024;
+                height = 1024;
+                return;
+            }
+            if (srcW >= srcH)
+            {
+                width = 2048;
+                height = Math.Max(1, (int)Math.Round(2048.0 * srcH / srcW));
+            }
+            else
+            {
+                height = 2048;
+                width = Math.Max(1, (int)Math.Round(2048.0 * srcW / srcH));
+            }
+        }
+
+        // ---- 图生图 可见性 ----
+
+        public bool GetImgModelVisible1(Office.IRibbonControl control) { return IsImgModelButtonVisible(0); }
+        public bool GetImgModelVisible2(Office.IRibbonControl control) { return IsImgModelButtonVisible(1); }
+        public bool GetImgModelVisible3(Office.IRibbonControl control) { return IsImgModelButtonVisible(2); }
+        public bool GetImgModelVisible4(Office.IRibbonControl control) { return IsImgModelButtonVisible(3); }
+        public bool GetImgModelVisible5(Office.IRibbonControl control) { return IsImgModelButtonVisible(4); }
+        public bool GetImgModelVisible6(Office.IRibbonControl control) { return IsImgModelButtonVisible(5); }
+        public bool GetImgModelVisible7(Office.IRibbonControl control) { return IsImgModelButtonVisible(6); }
+        public bool GetImgModelVisible8(Office.IRibbonControl control) { return IsImgModelButtonVisible(7); }
+        public bool GetImgModelVisible9(Office.IRibbonControl control) { return IsImgModelButtonVisible(8); }
+        public bool GetImgModelVisible10(Office.IRibbonControl control) { return IsImgModelButtonVisible(9); }
+        public bool GetImgModelVisible11(Office.IRibbonControl control) { return IsImgModelButtonVisible(10); }
+        public bool GetImgModelVisible12(Office.IRibbonControl control) { return IsImgModelButtonVisible(11); }
+
+        // ---- 图生图 启用（需选中图片） ----
+
+        public bool GetImgModelEnabled1(Office.IRibbonControl control) { return IsImgModelButtonVisible(0) && IsImageSelected(); }
+        public bool GetImgModelEnabled2(Office.IRibbonControl control) { return IsImgModelButtonVisible(1) && IsImageSelected(); }
+        public bool GetImgModelEnabled3(Office.IRibbonControl control) { return IsImgModelButtonVisible(2) && IsImageSelected(); }
+        public bool GetImgModelEnabled4(Office.IRibbonControl control) { return IsImgModelButtonVisible(3) && IsImageSelected(); }
+        public bool GetImgModelEnabled5(Office.IRibbonControl control) { return IsImgModelButtonVisible(4) && IsImageSelected(); }
+        public bool GetImgModelEnabled6(Office.IRibbonControl control) { return IsImgModelButtonVisible(5) && IsImageSelected(); }
+        public bool GetImgModelEnabled7(Office.IRibbonControl control) { return IsImgModelButtonVisible(6) && IsImageSelected(); }
+        public bool GetImgModelEnabled8(Office.IRibbonControl control) { return IsImgModelButtonVisible(7) && IsImageSelected(); }
+        public bool GetImgModelEnabled9(Office.IRibbonControl control) { return IsImgModelButtonVisible(8) && IsImageSelected(); }
+        public bool GetImgModelEnabled10(Office.IRibbonControl control) { return IsImgModelButtonVisible(9) && IsImageSelected(); }
+        public bool GetImgModelEnabled11(Office.IRibbonControl control) { return IsImgModelButtonVisible(10) && IsImageSelected(); }
+        public bool GetImgModelEnabled12(Office.IRibbonControl control) { return IsImgModelButtonVisible(11) && IsImageSelected(); }
+
+        // ---- 图生图 图片 ----
+
+        public stdole.IPictureDisp GetImgModelImage1(Office.IRibbonControl control) { return GetImgModelImageForButton(0); }
+        public stdole.IPictureDisp GetImgModelImage2(Office.IRibbonControl control) { return GetImgModelImageForButton(1); }
+        public stdole.IPictureDisp GetImgModelImage3(Office.IRibbonControl control) { return GetImgModelImageForButton(2); }
+        public stdole.IPictureDisp GetImgModelImage4(Office.IRibbonControl control) { return GetImgModelImageForButton(3); }
+        public stdole.IPictureDisp GetImgModelImage5(Office.IRibbonControl control) { return GetImgModelImageForButton(4); }
+        public stdole.IPictureDisp GetImgModelImage6(Office.IRibbonControl control) { return GetImgModelImageForButton(5); }
+        public stdole.IPictureDisp GetImgModelImage7(Office.IRibbonControl control) { return GetImgModelImageForButton(6); }
+        public stdole.IPictureDisp GetImgModelImage8(Office.IRibbonControl control) { return GetImgModelImageForButton(7); }
+        public stdole.IPictureDisp GetImgModelImage9(Office.IRibbonControl control) { return GetImgModelImageForButton(8); }
+        public stdole.IPictureDisp GetImgModelImage10(Office.IRibbonControl control) { return GetImgModelImageForButton(9); }
+        public stdole.IPictureDisp GetImgModelImage11(Office.IRibbonControl control) { return GetImgModelImageForButton(10); }
+        public stdole.IPictureDisp GetImgModelImage12(Office.IRibbonControl control) { return GetImgModelImageForButton(11); }
+
+        private stdole.IPictureDisp GetImgModelImageForButton(int buttonOffset)
+        {
+            EnsureBrandImages();
+            var entry = GetImgModelEntryForButton(buttonOffset);
+            if (entry == null)
+                return plusButtonImage ?? aiImageButtonImage ?? brandImageLarge ?? brandImageSmall;
+            return GetAiModelIcon(entry);
+        }
+
+        // ---- 图生图 提示 ----
+
+        public string GetImgModelScreentip1(Office.IRibbonControl control) { return GetImgModelTooltip(0); }
+        public string GetImgModelScreentip2(Office.IRibbonControl control) { return GetImgModelTooltip(1); }
+        public string GetImgModelScreentip3(Office.IRibbonControl control) { return GetImgModelTooltip(2); }
+        public string GetImgModelScreentip4(Office.IRibbonControl control) { return GetImgModelTooltip(3); }
+        public string GetImgModelScreentip5(Office.IRibbonControl control) { return GetImgModelTooltip(4); }
+        public string GetImgModelScreentip6(Office.IRibbonControl control) { return GetImgModelTooltip(5); }
+        public string GetImgModelScreentip7(Office.IRibbonControl control) { return GetImgModelTooltip(6); }
+        public string GetImgModelScreentip8(Office.IRibbonControl control) { return GetImgModelTooltip(7); }
+        public string GetImgModelScreentip9(Office.IRibbonControl control) { return GetImgModelTooltip(8); }
+        public string GetImgModelScreentip10(Office.IRibbonControl control) { return GetImgModelTooltip(9); }
+        public string GetImgModelScreentip11(Office.IRibbonControl control) { return GetImgModelTooltip(10); }
+        public string GetImgModelScreentip12(Office.IRibbonControl control) { return GetImgModelTooltip(11); }
+
+        // ---- 图生图 标签 ----
+
+        public string GetImgModelLabel1(Office.IRibbonControl control) { return GetImgModelLabel(0); }
+        public string GetImgModelLabel2(Office.IRibbonControl control) { return GetImgModelLabel(1); }
+        public string GetImgModelLabel3(Office.IRibbonControl control) { return GetImgModelLabel(2); }
+        public string GetImgModelLabel4(Office.IRibbonControl control) { return GetImgModelLabel(3); }
+        public string GetImgModelLabel5(Office.IRibbonControl control) { return GetImgModelLabel(4); }
+        public string GetImgModelLabel6(Office.IRibbonControl control) { return GetImgModelLabel(5); }
+        public string GetImgModelLabel7(Office.IRibbonControl control) { return GetImgModelLabel(6); }
+        public string GetImgModelLabel8(Office.IRibbonControl control) { return GetImgModelLabel(7); }
+        public string GetImgModelLabel9(Office.IRibbonControl control) { return GetImgModelLabel(8); }
+        public string GetImgModelLabel10(Office.IRibbonControl control) { return GetImgModelLabel(9); }
+        public string GetImgModelLabel11(Office.IRibbonControl control) { return GetImgModelLabel(10); }
+        public string GetImgModelLabel12(Office.IRibbonControl control) { return GetImgModelLabel(11); }
+
+        private string GetImgModelLabel(int buttonOffset)
+        {
+            var entry = GetImgModelEntryForButton(buttonOffset);
+            if (entry == null) return "+";
+            return string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? (entry.Model ?? "未命名")
+                : entry.DisplayName;
+        }
+
+        private string GetImgModelTooltip(int buttonOffset)
+        {
+            var entry = GetImgModelEntryForButton(buttonOffset);
+            if (entry == null) return "图生图 — 无模型（Ctrl+单击添加）";
+            return "图生图 — " + (string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? (entry.Model ?? "未知模型")
+                : entry.DisplayName + " (" + (entry.Model ?? "未知") + ")");
+        }
+
+        // ---- 图生图 点击 ----
+
+        public void OnImgModelClick1(Office.IRibbonControl control) { OnImgModelClick(0); }
+        public void OnImgModelClick2(Office.IRibbonControl control) { OnImgModelClick(1); }
+        public void OnImgModelClick3(Office.IRibbonControl control) { OnImgModelClick(2); }
+        public void OnImgModelClick4(Office.IRibbonControl control) { OnImgModelClick(3); }
+        public void OnImgModelClick5(Office.IRibbonControl control) { OnImgModelClick(4); }
+        public void OnImgModelClick6(Office.IRibbonControl control) { OnImgModelClick(5); }
+        public void OnImgModelClick7(Office.IRibbonControl control) { OnImgModelClick(6); }
+        public void OnImgModelClick8(Office.IRibbonControl control) { OnImgModelClick(7); }
+        public void OnImgModelClick9(Office.IRibbonControl control) { OnImgModelClick(8); }
+        public void OnImgModelClick10(Office.IRibbonControl control) { OnImgModelClick(9); }
+        public void OnImgModelClick11(Office.IRibbonControl control) { OnImgModelClick(10); }
+        public void OnImgModelClick12(Office.IRibbonControl control) { OnImgModelClick(11); }
+
+        private void OnImgModelClick(int buttonOffset)
+        {
+            if (!IsImageSelected()) return;
+            var entry = GetImgModelEntryForButton(buttonOffset);
+
+            if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                if (entry == null) entry = AiImageService.CreateDefaultSettings();
+                OpenAiModelSettingsDialog(entry);
+            }
+            else
+            {
+                if (entry == null) return;
+                selectedImgModelIndex = imgModelPageIndex * GetImgModelPageSize() + buttonOffset;
+                OpenImgToImgDialog(entry);
+            }
+        }
+
+        private void OpenImgToImgDialog(AiImageApiSettings entry)
+        {
+            var settingsList = aiImageSettingsList ?? AiImageService.LoadModelSettings();
+            aiImageSettingsList = settingsList;
+
+            var effective = GetEffectiveImgSettings();
+            // Default size from selected image: long edge = 2048
+            GetImgDefaultDimensions(out int w, out int h);
+            if (!string.IsNullOrWhiteSpace(imgWidthInputText)
+                && int.TryParse(imgWidthInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedW)
+                && parsedW > 0)
+                w = parsedW;
+            if (!string.IsNullOrWhiteSpace(imgHeightInputText)
+                && int.TryParse(imgHeightInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedH)
+                && parsedH > 0)
+                h = parsedH;
+
+            var quality = effective.DefaultQuality;
+            if (!string.IsNullOrWhiteSpace(imgQualityInputText))
+            {
+                for (int qi = 0; qi < AiQualityOptions.Length; qi++)
+                {
+                    if (string.Equals(AiQualityOptions[qi], imgQualityInputText, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(AiQualityValues[qi], imgQualityInputText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        quality = AiQualityValues[qi];
+                        break;
+                    }
+                }
+            }
+
+            using (var dialog = new ImgToImgDialog(entry, settingsList, w, h, quality, effective.DefaultFormat))
+            {
+                dialog.ShowDialog();
+            }
+        }
+
+        // ---- 图生图 宽度 ----
+
+        public int GetImgWidthItemCount(Office.IRibbonControl control) => AiSizeOptions.Length;
+        public string GetImgWidthItemLabel(Office.IRibbonControl control, int index)
+        {
+            return index >= 0 && index < AiSizeOptions.Length ? AiSizeOptions[index] : string.Empty;
+        }
+
+        public string GetImgWidthText(Office.IRibbonControl control)
+        {
+            if (!string.IsNullOrWhiteSpace(imgWidthInputText)) return imgWidthInputText;
+            GetImgDefaultDimensions(out int w, out _);
+            return w.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public void OnImgWidthChanged(Office.IRibbonControl control, string text)
+        {
+            imgWidthInputText = (text ?? string.Empty).Trim();
+            var effective = GetEffectiveImgSettings();
+            if (effective != null && effective.LockAspectRatio
+                && int.TryParse(imgWidthInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int w)
+                && w > 0)
+            {
+                if (!int.TryParse(imgHeightInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                {
+                    GetImgDefaultDimensions(out _, out int defH);
+                    double ratio = (double)defH / Math.Max(1, w);
+                    imgHeightInputText = ((int)Math.Round(w * ratio)).ToString(CultureInfo.InvariantCulture);
+                    if (ribbon != null) ribbon.InvalidateControl("DdImgImageHeight");
+                }
+            }
+        }
+
+        // ---- 图生图 高度 ----
+
+        public int GetImgHeightItemCount(Office.IRibbonControl control) => AiSizeOptions.Length;
+        public string GetImgHeightItemLabel(Office.IRibbonControl control, int index)
+        {
+            return index >= 0 && index < AiSizeOptions.Length ? AiSizeOptions[index] : string.Empty;
+        }
+
+        public string GetImgHeightText(Office.IRibbonControl control)
+        {
+            if (!string.IsNullOrWhiteSpace(imgHeightInputText)) return imgHeightInputText;
+            GetImgDefaultDimensions(out _, out int h);
+            return h.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public void OnImgHeightChanged(Office.IRibbonControl control, string text)
+        {
+            imgHeightInputText = (text ?? string.Empty).Trim();
+            var effective = GetEffectiveImgSettings();
+            if (effective != null && effective.LockAspectRatio
+                && int.TryParse(imgHeightInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int h)
+                && h > 0)
+            {
+                if (!int.TryParse(imgWidthInputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                {
+                    GetImgDefaultDimensions(out int defW, out _);
+                    double ratio = (double)defW / Math.Max(1, h);
+                    imgWidthInputText = ((int)Math.Round(h * ratio)).ToString(CultureInfo.InvariantCulture);
+                    if (ribbon != null) ribbon.InvalidateControl("DdImgImageWidth");
+                }
+            }
+        }
+
+        // ---- 图生图 质量 ----
+
+        public int GetImgQualityItemCount(Office.IRibbonControl control) => AiQualityOptions.Length;
+        public string GetImgQualityItemLabel(Office.IRibbonControl control, int index)
+        {
+            return index >= 0 && index < AiQualityOptions.Length ? AiQualityOptions[index] : string.Empty;
+        }
+
+        public string GetImgQualityText(Office.IRibbonControl control)
+        {
+            if (!string.IsNullOrWhiteSpace(imgQualityInputText)) return imgQualityInputText;
+            var effective = GetEffectiveImgSettings();
+            var quality = effective.DefaultQuality ?? "auto";
+            var idx = Array.IndexOf(AiQualityValues, quality.ToLowerInvariant());
+            return idx >= 0 ? AiQualityOptions[idx] : AiQualityOptions[0];
+        }
+
+        public void OnImgQualityChanged(Office.IRibbonControl control, string text)
+        {
+            imgQualityInputText = (text ?? string.Empty).Trim();
+        }
+
+        // ---- 图生图 翻页 ----
+
+        public void OnImgModelPageUp(Office.IRibbonControl control)
+        {
+            if (imgModelPageIndex > 0) { imgModelPageIndex--; InvalidateImgModelControls(); }
+        }
+
+        public void OnImgModelPageDown(Office.IRibbonControl control)
+        {
+            var list = aiImageSettingsList ?? new List<AiImageApiSettings>();
+            var pageSize = GetImgModelPageSize();
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)list.Count / pageSize));
+            if (imgModelPageIndex < totalPages - 1) { imgModelPageIndex++; InvalidateImgModelControls(); }
+        }
+
+        // ---- 图生图 页按钮图片 ----
+
+        public stdole.IPictureDisp GetImgPageButtonImage(Office.IRibbonControl control)
+        {
+            if (control != null && string.Equals(control.Id, "BtnImgModelPageUp", StringComparison.Ordinal))
+            {
+                if (pageUpButtonImage == null)
+                    pageUpButtonImage = CreateSvgChevronButtonImage(true);
+                return pageUpButtonImage ?? brandImageSmall ?? brandImageLarge;
+            }
+            if (pageDownButtonImage == null)
+                pageDownButtonImage = CreateSvgChevronButtonImage(false);
+            return pageDownButtonImage ?? brandImageSmall ?? brandImageLarge;
         }
 
         #endregion
@@ -2573,6 +3068,10 @@ namespace BioDraw
             if (aiImageButtonImage == null)
             {
                 aiImageButtonImage = CreateAiIconImage();
+            }
+            if (plusButtonImage == null)
+            {
+                plusButtonImage = LoadEmbeddedPngAsPicture(PlusPngResourceName, "plus.png");
             }
             if (addToLibraryContextMenuImage == null)
             {

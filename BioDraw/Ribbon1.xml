@@ -235,51 +235,63 @@
         <group id="GroupRegion5" label="素材自绘">
           <box id="AiImageRoot" boxStyle="horizontal">
             <box id="AiModelColumn" boxStyle="horizontal">
-              <button id="BtnAiModel1" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel1" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel1"
                 getImage="GetAiModelImage1" onAction="OnAiModelClick1"
                 getVisible="GetAiModelVisible1" getEnabled="GetAiModelEnabled1"
                 getScreentip="GetAiModelScreentip1" />
-              <button id="BtnAiModel2" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel2" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel2"
                 getImage="GetAiModelImage2" onAction="OnAiModelClick2"
                 getVisible="GetAiModelVisible2" getEnabled="GetAiModelEnabled2"
                 getScreentip="GetAiModelScreentip2" />
-              <button id="BtnAiModel3" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel3" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel3"
                 getImage="GetAiModelImage3" onAction="OnAiModelClick3"
                 getVisible="GetAiModelVisible3" getEnabled="GetAiModelEnabled3"
                 getScreentip="GetAiModelScreentip3" />
-              <button id="BtnAiModel4" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel4" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel4"
                 getImage="GetAiModelImage4" onAction="OnAiModelClick4"
                 getVisible="GetAiModelVisible4" getEnabled="GetAiModelEnabled4"
                 getScreentip="GetAiModelScreentip4" />
-              <button id="BtnAiModel5" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel5" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel5"
                 getImage="GetAiModelImage5" onAction="OnAiModelClick5"
                 getVisible="GetAiModelVisible5" getEnabled="GetAiModelEnabled5"
                 getScreentip="GetAiModelScreentip5" />
-              <button id="BtnAiModel6" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel6" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel6"
                 getImage="GetAiModelImage6" onAction="OnAiModelClick6"
                 getVisible="GetAiModelVisible6" getEnabled="GetAiModelEnabled6"
                 getScreentip="GetAiModelScreentip6" />
-              <button id="BtnAiModel7" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel7" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel7"
                 getImage="GetAiModelImage7" onAction="OnAiModelClick7"
                 getVisible="GetAiModelVisible7" getEnabled="GetAiModelEnabled7"
                 getScreentip="GetAiModelScreentip7" />
-              <button id="BtnAiModel8" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel8" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel8"
                 getImage="GetAiModelImage8" onAction="OnAiModelClick8"
                 getVisible="GetAiModelVisible8" getEnabled="GetAiModelEnabled8"
                 getScreentip="GetAiModelScreentip8" />
-              <button id="BtnAiModel9" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel9" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel9"
                 getImage="GetAiModelImage9" onAction="OnAiModelClick9"
                 getVisible="GetAiModelVisible9" getEnabled="GetAiModelEnabled9"
                 getScreentip="GetAiModelScreentip9" />
-              <button id="BtnAiModel10" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel10" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel10"
                 getImage="GetAiModelImage10" onAction="OnAiModelClick10"
                 getVisible="GetAiModelVisible10" getEnabled="GetAiModelEnabled10"
                 getScreentip="GetAiModelScreentip10" />
-              <button id="BtnAiModel11" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel11" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel11"
                 getImage="GetAiModelImage11" onAction="OnAiModelClick11"
                 getVisible="GetAiModelVisible11" getEnabled="GetAiModelEnabled11"
                 getScreentip="GetAiModelScreentip11" />
-              <button id="BtnAiModel12" size="large" showImage="true" showLabel="false"
+              <button id="BtnAiModel12" size="large" showImage="true" showLabel="true"
+                getLabel="GetAiModelLabel12"
                 getImage="GetAiModelImage12" onAction="OnAiModelClick12"
                 getVisible="GetAiModelVisible12" getEnabled="GetAiModelEnabled12"
                 getScreentip="GetAiModelScreentip12" />
@@ -320,6 +332,109 @@
                 getImage="GetSettingsButtonImage"
                 screentip="全局设置"
                 onAction="OnAiGlobalSettingsClick" />
+            </box>
+          </box>
+        </group>
+        <group id="GroupRegion6" label="素材重绘">
+          <box id="ImgImageRoot" boxStyle="horizontal">
+            <box id="ImgModelColumn" boxStyle="horizontal">
+              <button id="BtnImgModel1" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel1"
+                getImage="GetImgModelImage1" onAction="OnImgModelClick1"
+                getVisible="GetImgModelVisible1" getEnabled="GetImgModelEnabled1"
+                getScreentip="GetImgModelScreentip1" />
+              <button id="BtnImgModel2" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel2"
+                getImage="GetImgModelImage2" onAction="OnImgModelClick2"
+                getVisible="GetImgModelVisible2" getEnabled="GetImgModelEnabled2"
+                getScreentip="GetImgModelScreentip2" />
+              <button id="BtnImgModel3" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel3"
+                getImage="GetImgModelImage3" onAction="OnImgModelClick3"
+                getVisible="GetImgModelVisible3" getEnabled="GetImgModelEnabled3"
+                getScreentip="GetImgModelScreentip3" />
+              <button id="BtnImgModel4" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel4"
+                getImage="GetImgModelImage4" onAction="OnImgModelClick4"
+                getVisible="GetImgModelVisible4" getEnabled="GetImgModelEnabled4"
+                getScreentip="GetImgModelScreentip4" />
+              <button id="BtnImgModel5" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel5"
+                getImage="GetImgModelImage5" onAction="OnImgModelClick5"
+                getVisible="GetImgModelVisible5" getEnabled="GetImgModelEnabled5"
+                getScreentip="GetImgModelScreentip5" />
+              <button id="BtnImgModel6" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel6"
+                getImage="GetImgModelImage6" onAction="OnImgModelClick6"
+                getVisible="GetImgModelVisible6" getEnabled="GetImgModelEnabled6"
+                getScreentip="GetImgModelScreentip6" />
+              <button id="BtnImgModel7" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel7"
+                getImage="GetImgModelImage7" onAction="OnImgModelClick7"
+                getVisible="GetImgModelVisible7" getEnabled="GetImgModelEnabled7"
+                getScreentip="GetImgModelScreentip7" />
+              <button id="BtnImgModel8" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel8"
+                getImage="GetImgModelImage8" onAction="OnImgModelClick8"
+                getVisible="GetImgModelVisible8" getEnabled="GetImgModelEnabled8"
+                getScreentip="GetImgModelScreentip8" />
+              <button id="BtnImgModel9" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel9"
+                getImage="GetImgModelImage9" onAction="OnImgModelClick9"
+                getVisible="GetImgModelVisible9" getEnabled="GetImgModelEnabled9"
+                getScreentip="GetImgModelScreentip9" />
+              <button id="BtnImgModel10" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel10"
+                getImage="GetImgModelImage10" onAction="OnImgModelClick10"
+                getVisible="GetImgModelVisible10" getEnabled="GetImgModelEnabled10"
+                getScreentip="GetImgModelScreentip10" />
+              <button id="BtnImgModel11" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel11"
+                getImage="GetImgModelImage11" onAction="OnImgModelClick11"
+                getVisible="GetImgModelVisible11" getEnabled="GetImgModelEnabled11"
+                getScreentip="GetImgModelScreentip11" />
+              <button id="BtnImgModel12" size="large" showImage="true" showLabel="true"
+                getLabel="GetImgModelLabel12"
+                getImage="GetImgModelImage12" onAction="OnImgModelClick12"
+                getVisible="GetImgModelVisible12" getEnabled="GetImgModelEnabled12"
+                getScreentip="GetImgModelScreentip12" />
+            </box>
+            <box id="ImgConfigColumn" boxStyle="vertical">
+              <comboBox id="DdImgImageWidth"
+                label="宽度"
+                sizeString="XXXXXXX"
+                getItemCount="GetImgWidthItemCount"
+                getItemLabel="GetImgWidthItemLabel"
+                getText="GetImgWidthText"
+                onChange="OnImgWidthChanged" />
+              <comboBox id="DdImgImageHeight"
+                label="高度"
+                sizeString="XXXXXXX"
+                getItemCount="GetImgHeightItemCount"
+                getItemLabel="GetImgHeightItemLabel"
+                getText="GetImgHeightText"
+                onChange="OnImgHeightChanged" />
+              <comboBox id="EdImgImageQuality"
+                label="质量"
+                sizeString="XXXXXXX"
+                getItemCount="GetImgQualityItemCount"
+                getItemLabel="GetImgQualityItemLabel"
+                getText="GetImgQualityText"
+                onChange="OnImgQualityChanged" />
+            </box>
+            <box id="ImgNavBox" boxStyle="vertical">
+              <button id="BtnImgModelPageUp"
+                showImage="true" getImage="GetImgPageButtonImage"
+                showLabel="false" onAction="OnImgModelPageUp" />
+              <button id="BtnImgModelPageDown"
+                showImage="true" getImage="GetImgPageButtonImage"
+                showLabel="false" onAction="OnImgModelPageDown" />
+              <button id="BtnImgGlobalSettings"
+                showImage="true"
+                showLabel="false"
+                getImage="GetSettingsButtonImage"
+                screentip="全局设置"
+                onAction="OnImgGlobalSettingsClick" />
             </box>
           </box>
         </group>

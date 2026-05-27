@@ -20,10 +20,18 @@ namespace BioDraw
 
         private void ThisAddIn_Startup(object sender, System.EventArgs e)
         {
+            this.Application.WindowSelectionChange += OnWindowSelectionChange;
         }
 
         private void ThisAddIn_Shutdown(object sender, System.EventArgs e)
         {
+            this.Application.WindowSelectionChange -= OnWindowSelectionChange;
+        }
+
+        private void OnWindowSelectionChange(PowerPoint.Selection sel)
+        {
+            if (bioDrawRibbon != null)
+                bioDrawRibbon.InvalidateImgModelControls();
         }
 
         #region VSTO 生成的代码

@@ -38,5 +38,13 @@ namespace BioDraw
         public int DefaultHeight { get; set; }
         public string DefaultQuality { get; set; }
         public string DefaultFormat { get; set; }
+
+        // Independent settings for 图生图
+        public bool ImgOverridePerModel { get; set; }
+        public int ImgModelPreviewCount { get; set; }
+        public int ImgDefaultWidth { get; set; }
+        public int ImgDefaultHeight { get; set; }
+        public string ImgDefaultQuality { get; set; }
+        public string ImgDefaultFormat { get; set; }
     }
 }
