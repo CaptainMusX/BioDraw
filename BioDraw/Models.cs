@@ -28,6 +28,7 @@ namespace BioDraw
         public string DefaultFormat { get; set; }
         public string IconPath { get; set; }
         public bool LockAspectRatio { get; set; }
+        public string Resolution { get; set; }
     }
 
     internal sealed class AiImageGlobalSettings

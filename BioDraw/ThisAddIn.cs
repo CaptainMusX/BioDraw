@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Xml.Linq;
 using PowerPoint = Microsoft.Office.Interop.PowerPoint;
@@ -20,6 +21,7 @@ namespace BioDraw
 
         private void ThisAddIn_Startup(object sender, System.EventArgs e)
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | (SecurityProtocolType)12288;
             this.Application.WindowSelectionChange += OnWindowSelectionChange;
         }
 

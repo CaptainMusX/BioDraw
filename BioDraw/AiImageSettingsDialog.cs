@@ -37,6 +37,9 @@ namespace BioDraw
         private static readonly string[] QualityValues = { "auto", "low", "medium", "high" };
         private static readonly string[] FormatOptions = { "PNG", "JPEG", "WebP" };
         private static readonly string[] FormatValues = { "png", "jpeg", "webp" };
+        private static readonly string[] ResolutionOptions = { "1k", "2k", "4k" };
+
+        private ComboBox _resolutionCombo;
 
         public AiImageSettingsDialog(AiImageApiSettings settings, List<AiImageApiSettings> allSettings)
         {
@@ -57,8 +60,8 @@ namespace BioDraw
             AutoScaleMode = AutoScaleMode.Dpi;
             MaximizeBox = true;
             MinimizeBox = false;
-            MinimumSize = new Size(640, 580);
-            ClientSize = new Size(680, 620);
+            MinimumSize = new Size(640, 620);
+            ClientSize = new Size(680, 660);
             Icon = SystemIcons.Application;
 
             // ---- Icon (click to choose) ----
@@ -153,6 +156,9 @@ namespace BioDraw
 
             var lblFormat = new Label { Text = "格式", TextAlign = ContentAlignment.MiddleRight };
             _formatCombo = CreateCombo(FormatOptions, GetFormatIndex(_settings.DefaultFormat));
+            var lblResolution = new Label { Text = "分辨率", TextAlign = ContentAlignment.MiddleRight };
+            _resolutionCombo = CreateCombo(ResolutionOptions,
+                GetResolutionIndex(_settings.Resolution ?? "2k"));
 
             var btnDelete = new Button
             {
@@ -214,6 +220,8 @@ namespace BioDraw
             Controls.Add(_qualityCombo);
             Controls.Add(lblFormat);
             Controls.Add(_formatCombo);
+            Controls.Add(lblResolution);
+            Controls.Add(_resolutionCombo);
             Controls.Add(btnDelete);
             Controls.Add(btnSave);
             Controls.Add(btnCancel);
@@ -271,6 +279,7 @@ namespace BioDraw
 
                 LayoutRow(lblQuality, _qualityCombo, Math.Max(comboWidth, Math.Min(200, fullWidth)), labelWidth, fieldX, ref y);
                 LayoutRow(lblFormat, _formatCombo, Math.Max(comboWidth, Math.Min(200, fullWidth)), labelWidth, fieldX, ref y);
+                LayoutRow(lblResolution, _resolutionCombo, Math.Max(comboWidth, Math.Min(200, fullWidth)), labelWidth, fieldX, ref y);
 
                 var bottomY = ClientSize.Height - margin - 40;
                 const int buttonWidth = 100;
@@ -475,6 +484,7 @@ namespace BioDraw
             _settings.Model = (_modelBox.Text ?? string.Empty).Trim();
             _settings.DefaultQuality = QualityValues[_qualityCombo.SelectedIndex];
             _settings.DefaultFormat = FormatValues[_formatCombo.SelectedIndex];
+            _settings.Resolution = ResolutionOptions[_resolutionCombo.SelectedIndex];
             _settings.LockAspectRatio = _lockAspect;
 
             if (int.TryParse((_widthCombo.Text ?? string.Empty).Trim(), NumberStyles.Integer,
@@ -556,6 +566,13 @@ namespace BioDraw
             combo.Items.AddRange(items);
             combo.SelectedIndex = selectedIndex >= 0 && selectedIndex < items.Length ? selectedIndex : 0;
             return combo;
+        }
+        private static int GetResolutionIndex(string value)
+        {
+            for (int i = 0; i < ResolutionOptions.Length; i++)
+                if (string.Equals(ResolutionOptions[i], value, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            return 1; // default "2k"
         }
     }
 }

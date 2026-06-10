@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace BioDraw
@@ -307,14 +308,40 @@ namespace BioDraw
                 return;
             }
 
-            // Capture source image base64 before spawning thread
-            var sourceBase64 = AiImageService.GetSelectedImageBase64();
-            if (string.IsNullOrWhiteSpace(sourceBase64))
+            // Capture the original source image (full resolution, no recompression)
+            // before spawning the worker thread — COM access must stay on the UI thread.
+            string captureError;
+            var sourceImagePath = AiImageService.GetSelectedOriginalImageFile(out captureError);
+            if (string.IsNullOrWhiteSpace(sourceImagePath))
             {
-                _statusLabel.Text = "未能获取选中的图片，请重新选择。";
+                _statusLabel.Text = string.IsNullOrWhiteSpace(captureError)
+                    ? "未能获取选中的图片，请重新选择。"
+                    : captureError;
                 _statusLabel.ForeColor = Color.FromArgb(220, 53, 69);
                 return;
             }
+
+            // Remember original shape dimensions (in points) for insertion sizing.
+            float origShapeWidth = 0f, origShapeHeight = 0f;
+            try
+            {
+                dynamic app = Globals.ThisAddIn?.Application;
+                dynamic sel = app?.ActiveWindow?.Selection;
+                if (sel != null && sel.Type == 2 && sel.ShapeRange.Count >= 1)
+                {
+                    dynamic shape = sel.ShapeRange[1];
+                    if (shape.Type == 6)
+                    {
+                        foreach (var child in shape.GroupItems)
+                        {
+                            if (child.Type == 13 || child.Type == 11) { shape = child; break; }
+                        }
+                    }
+                    origShapeWidth = (float)shape.Width;
+                    origShapeHeight = (float)shape.Height;
+                }
+            }
+            catch { }
 
             SetGeneratingState(true);
 
@@ -328,12 +355,12 @@ namespace BioDraw
             var quality = QualityValues[_qualityCombo.SelectedIndex];
             var format = FormatValues[_formatCombo.SelectedIndex];
 
-            var thread = new Thread(() =>
+            Task.Run(() =>
             {
                 string outputPath;
                 string error;
                 var success = AiImageService.TryGenerateImageFromImage(_settings, prompt, width, height, quality, format,
-                    sourceBase64, out outputPath, out error);
+                    sourceImagePath, _settings.LockAspectRatio, out outputPath, out error);
 
                 BeginInvoke(new Action(() =>
                 {
@@ -341,7 +368,8 @@ namespace BioDraw
 
                     if (success && File.Exists(outputPath))
                     {
-                        var insertError = TryInsertToSlide(outputPath);
+                        var insertError = TryInsertToSlide(outputPath, origShapeWidth, origShapeHeight,
+                            _settings.LockAspectRatio);
                         if (string.IsNullOrEmpty(insertError))
                         {
                             _statusLabel.Text = "已插入幻灯片";
@@ -361,9 +389,6 @@ namespace BioDraw
                     }
                 }));
             });
-
-            thread.IsBackground = true;
-            thread.Start();
         }
 
         private void SetGeneratingState(bool generating)
@@ -383,7 +408,15 @@ namespace BioDraw
             }
         }
 
-        private static string TryInsertToSlide(string filePath)
+        /// <summary>
+        /// Inserts the generated image to the current slide. When lockAspectRatio is true
+        /// and original shape dimensions are known, scales the generated image so that its
+        /// short edge matches the original shape's short edge (maintaining the generated
+        /// image's own aspect ratio — no stretching). When lockAspectRatio is false, uses
+        /// the slide-fit logic (80% max, centered).
+        /// </summary>
+        private static string TryInsertToSlide(string filePath,
+            float origShapeWidth, float origShapeHeight, bool lockAspectRatio)
         {
             try
             {
@@ -404,26 +437,47 @@ namespace BioDraw
                     Microsoft.Office.Core.MsoTriState.msoTrue,
                     0f, 0f, -1f, -1f);
 
-                var pageSetup = app.ActivePresentation?.PageSetup;
-                if (pageSetup != null)
+                float picWidth = (float)newShape.Width;
+                float picHeight = (float)newShape.Height;
+
+                if (lockAspectRatio && origShapeWidth > 0f && origShapeHeight > 0f
+                    && picWidth > 0f && picHeight > 0f)
                 {
-                    float slideWidth = (float)pageSetup.SlideWidth;
-                    float slideHeight = (float)pageSetup.SlideHeight;
-                    float maxWidth = slideWidth * 0.8f;
-                    float maxHeight = slideHeight * 0.8f;
+                    // Match the generated image's short edge to the original shape's short edge,
+                    // preserving the generated image's own aspect ratio (no distortion).
+                    float origShortEdge = Math.Min(origShapeWidth, origShapeHeight);
+                    float picShortEdge = Math.Min(picWidth, picHeight);
+                    float scale = origShortEdge / picShortEdge;
 
-                    float picWidth = (float)newShape.Width;
-                    float picHeight = (float)newShape.Height;
-
-                    if (picWidth > maxWidth || picHeight > maxHeight)
+                    newShape.LockAspectRatio = -1; // msoTrue — maintain ratio
+                    newShape.Width = picWidth * scale;
+                }
+                else
+                {
+                    // No lock / no original dims: fit within 80% of slide, centered.
+                    var pageSetup = app.ActivePresentation?.PageSetup;
+                    if (pageSetup != null)
                     {
-                        float scale = Math.Min(maxWidth / picWidth, maxHeight / picHeight);
-                        newShape.LockAspectRatio = -1;
-                        newShape.Width = picWidth * scale;
-                    }
+                        float slideWidth = (float)pageSetup.SlideWidth;
+                        float slideHeight = (float)pageSetup.SlideHeight;
+                        float maxWidth = slideWidth * 0.8f;
+                        float maxHeight = slideHeight * 0.8f;
 
-                    newShape.Left = (slideWidth - (float)newShape.Width) / 2f;
-                    newShape.Top = (slideHeight - (float)newShape.Height) / 2f;
+                        if (picWidth > maxWidth || picHeight > maxHeight)
+                        {
+                            float scale = Math.Min(maxWidth / picWidth, maxHeight / picHeight);
+                            newShape.LockAspectRatio = -1;
+                            newShape.Width = picWidth * scale;
+                        }
+                    }
+                }
+
+                // Center on slide.
+                var ps = app.ActivePresentation?.PageSetup;
+                if (ps != null)
+                {
+                    newShape.Left = ((float)ps.SlideWidth - (float)newShape.Width) / 2f;
+                    newShape.Top = ((float)ps.SlideHeight - (float)newShape.Height) / 2f;
                 }
 
                 newShape.Select();

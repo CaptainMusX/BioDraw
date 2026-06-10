@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace BioDraw
@@ -325,7 +326,7 @@ namespace BioDraw
             var quality = QualityValues[_qualityCombo.SelectedIndex];
             var format = FormatValues[_formatCombo.SelectedIndex];
 
-            var thread = new Thread(() =>
+            Task.Run(() =>
             {
                 string outputPath;
                 string error;
@@ -358,9 +359,6 @@ namespace BioDraw
                     }
                 }));
             });
-
-            thread.IsBackground = true;
-            thread.Start();
         }
 
         private void SetGeneratingState(bool generating)
