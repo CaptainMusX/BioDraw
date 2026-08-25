@@ -4,6 +4,17 @@
 
 项目地址：https://github.com/CaptainMusX/BioDraw
 
+当前开发版本：**v2.1.0**
+
+## v2.1.0 重点更新
+
+- 设置、颜色预设、AI 绘图与“关于”窗口统一迁移到 WebView2 界面。
+- 补充键盘焦点、Esc 关闭、窄窗口自适应、减少动态效果和高对比度支持。
+- 文生图/图生图增加重复提交保护、尺寸与格式校验，并移除完成时的界面阻塞。
+- API 令牌使用 Windows DPAPI（当前用户范围）加密保存；旧明文配置会在下次保存时自动迁移。
+- 素材与目录删除增加确认、路径越界防护和链接目录保护。
+- WebView2 SDK 更新至 `1.0.4129.50`，并限制嵌入页面的导航、下载和权限请求。
+
 ## 视频教程
 
 - 【BioDraw v1.2.0 功能演示】 https://www.bilibili.com/video/BV1vEo4B5EvV/?share_source=copy_web&vd_source=89f6f6134a704c2c421287c90d4a21a1
@@ -62,6 +73,7 @@
 - Microsoft PowerPoint（建议 Office 2016 及以上）
 - .NET Framework 4.7.2（安装包会尝试自动安装）
 - Visual Studio 2010 Tools for Office Runtime（VSTO Runtime，安装包会尝试自动安装）
+- Microsoft Edge WebView2 Runtime（新版 Windows/Office 通常已安装）
 - ImageMagick（图色替换功能必需）
 
 ---
@@ -161,3 +173,19 @@ magick -version
 
 - Windows 设置 -> 应用 -> 已安装应用（或控制面板 -> 程序和功能）
 - 找到 `BioDraw` 后卸载
+
+---
+
+## 开发与验证
+
+项目是 .NET Framework 4.7.2 的 PowerPoint VSTO 加载项，需要安装 Visual Studio 的 Office/SharePoint 开发工作负载，不能用普通的 `dotnet build` 完整构建。
+
+```powershell
+nuget restore BioDraw\BioDraw.csproj -PackagesDirectory packages
+msbuild BioDraw.slnx /t:Rebuild /p:Configuration=Release
+powershell -ExecutionPolicy Bypass -File scripts\Validate-Repository.ps1
+```
+
+仓库不提交 `packages/`、NuGet 可执行文件或任何 `.pfx`/`.snk` 私钥。VSTO/ClickOnce 构建必须签名，因此维护者需通过 Visual Studio 的“签名”页在 `BioDraw/BioDraw_DebugKey.pfx` 提供本地开发证书，发布证书则应来自受保护的本机或 CI 密钥存储。缺少证书时项目会在构建早期给出明确错误。
+
+自动化验证覆盖资源完整性、Web UI 安全基线和 Release 编译；实际 PowerPoint 中的加载、窗口交互、素材删除确认、AI 接口调用与 ClickOnce 安装仍需在发布前进行人工验收。

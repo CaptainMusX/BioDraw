@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>颜色替换参数</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title">颜色替换参数</div>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <div class="form-group mb-8">
+        <label for="presetName">预设名称</label>
+        <input type="text" id="presetName" placeholder="输入预设名称" maxlength="100" autocomplete="off" aria-describedby="presetError">
+      </div>
+      <div class="form-group mb-8">
+        <label for="sortOrder">排序位置</label>
+        <input type="number" id="sortOrder" min="1" value="1" style="width:100px;">
+      </div>
+      <div class="form-group">
+        <label for="fuzzValue">容差（Fuzz %）</label>
+        <div class="slider-row mt-8" style="gap:10px;">
+          <input type="range" id="fuzzSlider" min="0" max="100" step="0.1" value="10" aria-label="容差百分比">
+          <input type="number" id="fuzzValue" min="0" max="100" step="0.1" value="10" style="width:60px;height:28px;">
+          <span class="text-muted">%</span>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="check-row">
+        <input type="checkbox" id="setDefault">
+        <label for="setDefault">保存为默认预设</label>
+      </div>
+    </div>
+    <div id="presetError" class="status error" role="alert" aria-live="polite" style="min-height:16px;"></div>
+  </div>
+
+  <div class="action-bar space-between">
+    <div class="left">
+      <button type="button" class="btn btn-danger" id="deleteBtn" onclick="BioDraw.send('delete')">删除</button>
+    </div>
+    <div class="right">
+      <button type="button" class="btn btn-secondary" onclick="BioDraw.send('cancel')">取消</button>
+      <button type="button" class="btn btn-primary" onclick="save()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+const slider = document.getElementById('fuzzSlider');
+const fuzzNum = document.getElementById('fuzzValue');
+function updateSliderFill() { slider.style.setProperty('--fill', slider.value + '%'); }
+slider.addEventListener('input', () => { fuzzNum.value = slider.value; updateSliderFill(); });
+fuzzNum.addEventListener('input', () => { slider.value = fuzzNum.value; updateSliderFill(); });
+
+function save() {
+  const name = document.getElementById('presetName');
+  if (!name.value.trim()) {
+    document.getElementById('presetError').textContent = '名称不能为空。';
+    name.focus();
+    return;
+  }
+  const invalid = [...document.querySelectorAll('input')].find(field => !field.checkValidity());
+  if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+  document.getElementById('presetError').textContent = '';
+  BioDraw.send('save', {
+    name: name.value,
+    sortOrder: parseInt(document.getElementById('sortOrder').value) || 1,
+    fuzzPercent: parseFloat(fuzzNum.value) || 0,
+    setAsDefault: document.getElementById('setDefault').checked
+  });
+}
+
+BioDraw.on('init', d => {
+  document.getElementById('presetName').value = d.name || '';
+  document.getElementById('sortOrder').value = d.sortOrder || 1;
+  document.getElementById('sortOrder').max = d.maximumSortOrder || 1;
+  fuzzNum.value = slider.value = d.fuzzPercent || 0;
+  updateSliderFill();
+  document.getElementById('setDefault').checked = !!d.setAsDefault;
+  if (d.canDelete === false) document.getElementById('deleteBtn').classList.add('hidden');
+});
+BioDraw.on('validationError', d => {
+  document.getElementById('presetError').textContent = d.message || '输入无效。';
+});
+</script>
+</body></html>

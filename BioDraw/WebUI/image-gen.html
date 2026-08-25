@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>BioDraw AI 绘图</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title" id="dlgTitle">素材自绘</div>
+  </div>
+
+  <div class="content">
+    <div class="form-group" style="flex:1;display:flex;flex-direction:column;gap:3px;">
+      <label for="prompt">提示词</label>
+      <textarea id="prompt" style="flex:1;min-height:120px;" placeholder="描述你想生成的图片..." maxlength="20000"></textarea>
+    </div>
+
+    <div class="section">
+      <div class="param-row">
+        <label for="width">宽度</label>
+        <input type="number" id="width" min="256" max="4096" step="64" value="1024">
+        <input type="range" id="widthSlider" min="256" max="4096" step="64" value="1024" aria-label="图像宽度">
+        <span class="param-val" id="widthVal">1024</span>
+      </div>
+      <div class="param-row">
+        <label for="height">高度</label>
+        <input type="number" id="height" min="256" max="4096" step="64" value="1024">
+        <input type="range" id="heightSlider" min="256" max="4096" step="64" value="1024" aria-label="图像高度">
+        <span class="param-val" id="heightVal">1024</span>
+      </div>
+      <div class="select-row" style="margin-top:8px;">
+        <div class="select-group">
+          <label for="quality">质量</label>
+          <select id="quality">
+            <option value="auto">auto</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </div>
+        <div class="select-group">
+          <label for="format">格式</label>
+          <select id="format">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+        <div class="select-group hidden" id="lockGroup">
+          <button type="button" class="toggle-btn" id="lockBtn" onclick="toggleLock()" title="锁定原图比例" aria-label="锁定原图比例" aria-pressed="false">⬚</button>
+          <span class="text-muted" id="lockLabel">自由比例</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-bar">
+    <span class="status ready" id="status" role="status" aria-live="polite">就绪</span>
+    <button type="button" class="btn btn-secondary" onclick="BioDraw.send('cancel')">关闭</button>
+    <button type="button" class="btn btn-primary" id="generateBtn" onclick="generate()" style="min-width:76px;">生图</button>
+  </div>
+</div>
+
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+let generating = false, locked = false;
+
+function updateSliderFill(slider) {
+  const min = parseFloat(slider.min), max = parseFloat(slider.max), val = parseFloat(slider.value);
+  const pct = ((val - min) / (max - min)) * 100;
+  slider.style.setProperty('--fill', pct + '%');
+}
+
+function syncPair(numId, sliderId, valId) {
+  const n = document.getElementById(numId), s = document.getElementById(sliderId), v = document.getElementById(valId);
+  n.addEventListener('input', () => { s.value = n.value; v.textContent = n.value; updateSliderFill(s); });
+  s.addEventListener('input', () => { n.value = s.value; v.textContent = s.value; updateSliderFill(s); });
+  updateSliderFill(s);
+}
+syncPair('width','widthSlider','widthVal');
+syncPair('height','heightSlider','heightVal');
+
+function toggleLock() {
+  locked = !locked;
+  const b = document.getElementById('lockBtn');
+  b.classList.toggle('active', locked);
+  b.textContent = locked ? '🔗' : '⬚';
+  b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+  document.getElementById('lockLabel').textContent = locked ? '原图比例' : '自由比例';
+}
+
+function generate() {
+  if (generating) return;
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) { setStatus('请输入提示词','error'); return; }
+  const invalid = [...document.querySelectorAll('input, select, textarea')].find(field => !field.checkValidity());
+  if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+  setGenerating(true);
+  BioDraw.send('generate', {
+    prompt,
+    width: parseInt(document.getElementById('width').value) || 1024,
+    height: parseInt(document.getElementById('height').value) || 1024,
+    quality: document.getElementById('quality').value,
+    format: document.getElementById('format').value,
+    lockAspectRatio: locked
+  });
+}
+
+function setGenerating(v) {
+  generating = v;
+  document.body.dataset.busy = v ? 'true' : 'false';
+  document.querySelectorAll('.content input, .content select, .content textarea, .content button, #generateBtn').forEach(control => control.disabled = v);
+  if (v) setStatus('正在生成...','generating');
+}
+function setStatus(t, c) { const el = document.getElementById('status'); el.textContent = t; el.className = 'status ' + (c||'ready'); }
+
+BioDraw.on('init', d => {
+  if (d.title) document.getElementById('dlgTitle').textContent = d.title;
+  const w = d.width || 1024, h = d.height || 1024;
+  document.getElementById('width').value = w; document.getElementById('widthSlider').value = w; document.getElementById('widthVal').textContent = w;
+  document.getElementById('height').value = h; document.getElementById('heightSlider').value = h; document.getElementById('heightVal').textContent = h;
+  updateSliderFill(document.getElementById('widthSlider'));
+  updateSliderFill(document.getElementById('heightSlider'));
+  document.getElementById('quality').value = d.quality || 'auto';
+  document.getElementById('format').value = d.format || 'png';
+  if (d.showLock) {
+    document.getElementById('lockGroup').classList.remove('hidden');
+    locked = !!d.lockAspectRatio;
+    const b = document.getElementById('lockBtn');
+    b.classList.toggle('active', locked);
+    b.textContent = locked ? '🔗' : '⬚';
+    b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    document.getElementById('lockLabel').textContent = locked ? '原图比例' : '自由比例';
+  }
+});
+BioDraw.on('status', d => { setStatus(d.text, d.type); if (d.type !== 'generating') setGenerating(false); });
+BioDraw.on('done', () => { setGenerating(false); setStatus('已插入幻灯片','success'); });
+</script>
+</body></html>

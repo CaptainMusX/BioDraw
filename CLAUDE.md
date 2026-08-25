@@ -16,6 +16,9 @@ BioDraw is a PowerPoint VSTO add-in (.NET Framework 4.7.2) that adds a custom Ri
 | `BioDraw/PresetManager.cs` | Static utilities for preset management, color option handling, config parsing |
 | `BioDraw/NativeMethods.cs` | Win32 P/Invoke declarations for screen color picking |
 | `BioDraw/PictureConverter.cs` | AxHost-based `Image → stdole.IPictureDisp` converter |
+| `BioDraw/WebViewDialogBase.cs` | Shared WebView2 host, message validation, window chrome, bounds persistence, and navigation lockdown |
+| `BioDraw/*WebDialog.cs` | Typed C# adapters for settings, presets, and AI generation WebView dialogs |
+| `BioDraw/WebUI/` | Embedded HTML/CSS/JS resources for the WebView2 dialog layer |
 
 ## COM Interop Constraints
 
@@ -28,6 +31,16 @@ The project uses `Microsoft.Office.Core` COM reference v2.7 with `EmbedInteropTy
 These can only be used as `(int)` casts on `dynamic` values, never as typed properties. `CapturedEffect` uses `int` for `EffectType` and `TriggerType` for this reason. The `msoAnimateLevelNone` value is `0`.
 
 Safe types (available in v2.7): `MsoTriState`, `MsoZOrderCmd`.
+
+## WebView Dialog Constraints
+
+- Keep all UI resources embedded; dialog pages must not load remote scripts, styles, fonts, or images.
+- JavaScript sends structured `{ action, payload }` objects. Do not reintroduce JSON-string-inside-JSON transport.
+- Add new host actions through exact action matching in `WebViewDialogBase`; never dispatch with substring checks.
+- Keep navigation, downloads, permissions, host objects, autofill, password saving, and DevTools disabled.
+- Every new HTML dialog must include the CSP, accessible close button, `STYLES_PLACEHOLDER`, and `BRIDGE_PLACEHOLDER` used by the current pages.
+- Do not block the PowerPoint UI thread. Background generation callbacks must use `TryBeginInvoke`; delayed close uses `CloseAfter`.
+- Run `scripts/Validate-Repository.ps1` after adding or renaming Web UI resources.
 
 ---
 
@@ -116,4 +129,6 @@ This formula assumes PowerPoint's `shape.Width` returns the **visible** frame wi
 - Output type: Library (`.dll`)
 - Host application: PowerPoint
 - Cannot be built with `dotnet build` — requires Visual Studio with Office/SharePoint workload
+- Restore `packages.config` before building; `packages/` and NuGet executables are local-only and ignored
+- Signing keys are never committed. VSTO builds require a local `BioDraw_DebugKey.pfx`; create it through Visual Studio's Signing page
 - Debug: attaches to `powerpnt.exe`

@@ -1,7 +1,12 @@
 .vs/
 **/bin/
 **/obj/
+packages/
+nuget.exe
 *.user
 *.suo
 *.pdb
+*.pfx
+*.pfx.backup
+*.snk
 BioDraw/publish/

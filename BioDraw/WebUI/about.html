@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>关于 BioDraw</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title">关于 BioDraw</div>
+  </div>
+
+  <div class="content" style="align-items:center;justify-content:center;text-align:center;flex:1;">
+    <div class="about-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    </div>
+    <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;color:rgba(20,20,30,0.88);">BioDraw</div>
+    <div id="versionText" style="font-size:12px;color:var(--text-secondary);margin:4px 0 14px;">PowerPoint VSTO 插件</div>
+    <div style="font-size:13px;color:rgba(40,40,60,0.7);line-height:1.7;max-width:240px;">
+      专为科研绘图设计<br>图色替换 · AI 绘图 · 素材管理
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:rgba(100,100,120,0.5);">由 CaptainMus 开发</div>
+  </div>
+
+  <div class="action-bar" style="justify-content:center;">
+    <button type="button" class="btn btn-primary" style="min-width:80px;" onclick="BioDraw.send('cancel')">好的</button>
+  </div>
+</div>
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+BioDraw.on('init', data => {
+  const version = data.version ? 'v' + data.version + ' · ' : '';
+  document.getElementById('versionText').textContent = version + 'PowerPoint VSTO 插件';
+});
+</script>
+</body></html>

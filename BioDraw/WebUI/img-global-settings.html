@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>图生图全局设置</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title">图生图 全局设置</div>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <div class="check-row mb-12">
+        <input type="checkbox" id="override">
+        <label for="override">通用配置优先于独立配置</label>
+      </div>
+      <div class="form-group">
+        <label for="previewCount">模型按钮预览数量</label>
+        <div class="slider-row mt-8">
+          <input type="range" id="previewSlider" min="1" max="12" value="5" aria-label="模型按钮预览数量">
+          <input type="number" id="previewCount" min="1" max="12" value="5" style="width:56px;height:28px;">
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">默认参数</div>
+      <div class="form-row mb-8">
+        <div class="form-group">
+          <label for="defaultWidth">宽度</label>
+          <input type="number" id="defaultWidth" min="1" max="4096" value="1024">
+        </div>
+        <div class="form-group">
+          <label for="defaultHeight">高度</label>
+          <input type="number" id="defaultHeight" min="1" max="4096" value="1024">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="quality">质量</label>
+          <select id="quality">
+            <option value="auto">auto（自动）</option>
+            <option value="low">low（低）</option>
+            <option value="medium">medium（中）</option>
+            <option value="high">high（高）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="format">格式</label>
+          <select id="format">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-bar">
+    <button type="button" class="btn btn-secondary" onclick="BioDraw.send('cancel')">取消</button>
+    <button type="button" class="btn btn-primary" onclick="save()">保存</button>
+  </div>
+</div>
+
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+const slider = document.getElementById('previewSlider');
+const counter = document.getElementById('previewCount');
+function updateSliderFill() {
+  const percent = ((Number(slider.value) - Number(slider.min)) / (Number(slider.max) - Number(slider.min))) * 100;
+  slider.style.setProperty('--fill', percent + '%');
+}
+slider.addEventListener('input', () => { counter.value = slider.value; updateSliderFill(); });
+counter.addEventListener('input', () => { slider.value = counter.value; updateSliderFill(); });
+function save() {
+  const fields = [...document.querySelectorAll('input, select')];
+  const invalid = fields.find(field => !field.checkValidity());
+  if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+  BioDraw.send('save', {
+    override: document.getElementById('override').checked,
+    previewCount: parseInt(counter.value) || 5,
+    defaultWidth: parseInt(document.getElementById('defaultWidth').value) || 1024,
+    defaultHeight: parseInt(document.getElementById('defaultHeight').value) || 1024,
+    quality: document.getElementById('quality').value,
+    format: document.getElementById('format').value
+  });
+}
+BioDraw.on('init', d => {
+  document.getElementById('override').checked = !!d.override;
+  counter.value = slider.value = d.previewCount || 5;
+  document.getElementById('defaultWidth').value = d.defaultWidth || 1024;
+  document.getElementById('defaultHeight').value = d.defaultHeight || 1024;
+  document.getElementById('quality').value = d.quality || 'auto';
+  document.getElementById('format').value = d.format || 'png';
+  updateSliderFill();
+});
+</script>
+</body></html>

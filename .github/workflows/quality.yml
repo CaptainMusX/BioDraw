@@ -1,0 +1,19 @@
+name: Repository quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate project resources and Web UI
+        shell: pwsh
+        run: ./scripts/Validate-Repository.ps1

@@ -152,6 +152,42 @@ namespace BioDraw
             return normalized;
         }
 
+        public static bool TryNormalizeImageMagickColor(
+            string text, bool allowEmpty, out string normalized)
+        {
+            normalized = NormalizeColorInputText(text);
+            if (string.IsNullOrEmpty(normalized)) return allowEmpty;
+            if (normalized.Length > 64) return false;
+
+            foreach (char c in normalized)
+            {
+                if (c >= 'a' && c <= 'z' ||
+                    c >= 'A' && c <= 'Z' ||
+                    c >= '0' && c <= '9')
+                {
+                    continue;
+                }
+
+                switch (c)
+                {
+                    case '#':
+                    case '(':
+                    case ')':
+                    case ',':
+                    case '.':
+                    case '%':
+                    case ' ':
+                    case '+':
+                    case '-':
+                        continue;
+                    default:
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
         public static string ToStorageColorInputText(string text)
         {
             var normalized = NormalizeColorInputText(text);

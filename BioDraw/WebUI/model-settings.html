@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>模型设置</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title" id="dlgTitle">模型设置</div>
+  </div>
+
+  <div class="content">
+    <div class="section">
+      <div class="form-row" style="align-items:center;gap:12px;margin-bottom:10px;">
+        <button type="button" class="icon-box" id="iconBox" onclick="BioDraw.send('pickIcon')" title="点击选择图标" aria-label="选择模型图标">
+          <span class="placeholder" id="iconPlaceholder">+</span>
+          <img id="iconImg" class="hidden" alt="" />
+        </button>
+        <div class="form-group">
+          <label for="displayName">显示名称</label>
+          <input type="text" id="displayName" placeholder="GPT-Image-2" maxlength="100" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group mb-8">
+        <label for="apiToken">API 令牌</label>
+        <div class="pwd-row">
+          <input type="password" id="apiToken" placeholder="sk-..." maxlength="8192" autocomplete="off" spellcheck="false">
+          <button type="button" class="pwd-toggle" id="pwdToggle" onclick="togglePwd()" aria-controls="apiToken" aria-pressed="false">显示</button>
+        </div>
+      </div>
+      <div class="form-group mb-8">
+        <label for="endpointUrl">接口地址</label>
+        <input type="url" id="endpointUrl" placeholder="https://api.apimart.ai/v1/images/generations" maxlength="2048" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="form-group">
+        <label for="modelName">模型名称</label>
+        <input type="text" id="modelName" placeholder="gpt-image-2" maxlength="200" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">输出设置</div>
+      <div class="form-row mb-8" style="align-items:center;gap:8px;">
+        <div class="form-group">
+          <label for="defaultWidth">宽度</label>
+          <input type="number" id="defaultWidth" min="1" max="4096" value="1024">
+        </div>
+        <button type="button" class="toggle-btn" id="lockBtn" onclick="toggleLock()" style="margin-top:16px;" title="锁定宽高比" aria-label="锁定宽高比" aria-pressed="false">⬚</button>
+        <div class="form-group">
+          <label for="defaultHeight">高度</label>
+          <input type="number" id="defaultHeight" min="1" max="4096" value="1024">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="quality">质量</label>
+          <select id="quality">
+            <option value="auto">auto（自动）</option>
+            <option value="low">low（低）</option>
+            <option value="medium">medium（中）</option>
+            <option value="high">high（高）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="format">格式</label>
+          <select id="format">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="resolution">分辨率</label>
+          <select id="resolution">
+            <option value="1k">1k</option>
+            <option value="2k">2k</option>
+            <option value="4k">4k</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-bar space-between">
+    <div class="left">
+      <button type="button" class="btn btn-danger" id="deleteBtn" onclick="BioDraw.send('delete')">删除</button>
+    </div>
+    <div class="right">
+      <button type="button" class="btn btn-secondary" onclick="BioDraw.send('cancel')">取消</button>
+      <button type="button" class="btn btn-primary" onclick="save()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+let locked = false, aspectRatio = 1, syncingRatio = false;
+function togglePwd() {
+  const i = document.getElementById('apiToken'), b = document.getElementById('pwdToggle');
+  i.type = i.type === 'password' ? 'text' : 'password';
+  b.textContent = i.type === 'password' ? '显示' : '隐藏';
+  b.setAttribute('aria-pressed', i.type === 'text' ? 'true' : 'false');
+}
+function toggleLock() {
+  locked = !locked;
+  const w = Math.max(1, parseInt(document.getElementById('defaultWidth').value) || 1);
+  const h = Math.max(1, parseInt(document.getElementById('defaultHeight').value) || 1);
+  if (locked) aspectRatio = w / h;
+  const b = document.getElementById('lockBtn');
+  b.classList.toggle('active', locked);
+  b.textContent = locked ? '🔗' : '⬚';
+  b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+}
+function syncRatio(source) {
+  if (!locked || syncingRatio) return;
+  syncingRatio = true;
+  const width = document.getElementById('defaultWidth');
+  const height = document.getElementById('defaultHeight');
+  if (source === width) height.value = Math.max(1, Math.min(4096, Math.round((parseInt(width.value) || 1) / aspectRatio)));
+  else width.value = Math.max(1, Math.min(4096, Math.round((parseInt(height.value) || 1) * aspectRatio)));
+  syncingRatio = false;
+}
+document.getElementById('defaultWidth').addEventListener('input', event => syncRatio(event.target));
+document.getElementById('defaultHeight').addEventListener('input', event => syncRatio(event.target));
+function save() {
+  const fields = [...document.querySelectorAll('input, select')];
+  const invalid = fields.find(field => !field.checkValidity());
+  if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
+  BioDraw.send('save', {
+    displayName: document.getElementById('displayName').value,
+    apiToken: document.getElementById('apiToken').value,
+    endpointUrl: document.getElementById('endpointUrl').value,
+    model: document.getElementById('modelName').value,
+    defaultWidth: parseInt(document.getElementById('defaultWidth').value) || 1024,
+    defaultHeight: parseInt(document.getElementById('defaultHeight').value) || 1024,
+    quality: document.getElementById('quality').value,
+    format: document.getElementById('format').value,
+    resolution: document.getElementById('resolution').value,
+    lockAspectRatio: locked
+  });
+}
+BioDraw.on('init', d => {
+  document.getElementById('dlgTitle').textContent = '模型设置 · ' + (d.displayName || 'GPT-Image-2');
+  document.getElementById('displayName').value = d.displayName || '';
+  document.getElementById('apiToken').value = d.apiToken || '';
+  document.getElementById('endpointUrl').value = d.endpointUrl || '';
+  document.getElementById('modelName').value = d.model || '';
+  document.getElementById('defaultWidth').value = d.defaultWidth || 1024;
+  document.getElementById('defaultHeight').value = d.defaultHeight || 1024;
+  document.getElementById('quality').value = d.quality || 'auto';
+  document.getElementById('format').value = d.format || 'png';
+  document.getElementById('resolution').value = d.resolution || '2k';
+  locked = !!d.lockAspectRatio;
+  aspectRatio = Math.max(1, d.defaultWidth || 1024) / Math.max(1, d.defaultHeight || 1024);
+  const b = document.getElementById('lockBtn');
+  b.classList.toggle('active', locked); b.textContent = locked ? '🔗' : '⬚';
+  b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+  if (d.canDelete === false) document.getElementById('deleteBtn').classList.add('hidden');
+  if (d.iconBase64) {
+    document.getElementById('iconImg').src = 'data:image/png;base64,' + d.iconBase64;
+    document.getElementById('iconImg').classList.remove('hidden');
+    document.getElementById('iconPlaceholder').classList.add('hidden');
+  }
+});
+BioDraw.on('iconChanged', d => {
+  if (d.base64) {
+    document.getElementById('iconImg').src = 'data:image/png;base64,' + d.base64;
+    document.getElementById('iconImg').classList.remove('hidden');
+    document.getElementById('iconPlaceholder').classList.add('hidden');
+  }
+});
+</script>
+</body></html>

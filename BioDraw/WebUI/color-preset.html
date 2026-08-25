@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>颜色预设</title>
+<style>STYLES_PLACEHOLDER</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <button type="button" class="tl tl-close" aria-label="关闭"></button>
+      <span class="tl tl-min" aria-hidden="true"></span>
+      <span class="tl tl-max" aria-hidden="true"></span>
+    </div>
+    <div class="titlebar-title" id="dlgTitle">颜色预设</div>
+  </div>
+
+  <div class="content">
+    <div class="color-list mb-8" id="colorList" role="listbox" aria-label="颜色预设" style="min-height:140px;"></div>
+
+    <div class="section">
+      <div class="form-row" style="align-items:flex-end;gap:8px;">
+        <div class="form-group" style="flex:2;">
+          <label for="colorInput">颜色值</label>
+          <div style="display:flex;gap:7px;align-items:center;">
+            <input type="text" id="colorInput" placeholder="#FF0000 或 transparent" maxlength="64" autocomplete="off" spellcheck="false" aria-describedby="colorError">
+            <button type="button" class="color-swatch" id="colorSwatch" onclick="pickColor()" title="拾色器" aria-label="打开拾色器"></button>
+          </div>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="posInput">位置</label>
+          <input type="number" id="posInput" min="1" value="1">
+        </div>
+      </div>
+      <div id="colorError" class="status error" role="alert" aria-live="polite" style="margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  <div class="action-bar space-between">
+    <div class="left">
+      <button type="button" class="btn btn-secondary" id="moveUpBtn" onclick="moveColor(-1)">上移</button>
+      <button type="button" class="btn btn-secondary" id="moveDownBtn" onclick="moveColor(1)">下移</button>
+      <button type="button" class="btn btn-danger" id="deleteBtn" onclick="deleteColor()">删除</button>
+    </div>
+    <div class="right">
+      <button type="button" class="btn btn-secondary" onclick="BioDraw.send('cancel')">取消</button>
+      <button type="button" class="btn btn-primary" onclick="saveColor()">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>BRIDGE_PLACEHOLDER</script>
+<script>
+let colors = [], selectedIdx = -1, allowEmpty = false, currentValue = '';
+
+function sameColor(a, b) { return String(a || '').toLowerCase() === String(b || '').toLowerCase(); }
+
+function applySwatch(element, value) {
+  element.style.background = '';
+  element.style.backgroundColor = '';
+  element.style.backgroundImage = '';
+  element.style.backgroundSize = '';
+  element.style.backgroundPosition = '';
+  const normalized = String(value || '').trim();
+  const isTransparent = !normalized || normalized.toLowerCase() === 'transparent';
+  if (isTransparent) {
+    element.style.backgroundImage = 'linear-gradient(45deg,#bbb 25%,transparent 25%,transparent 75%,#bbb 75%),linear-gradient(45deg,#bbb 25%,transparent 25%,transparent 75%,#bbb 75%)';
+    element.style.backgroundSize = '7px 7px';
+    element.style.backgroundPosition = '0 0,3.5px 3.5px';
+  } else if (CSS.supports('color', normalized)) {
+    element.style.backgroundColor = normalized;
+  } else {
+    element.style.backgroundColor = '#d6dae3';
+  }
+}
+
+function render() {
+  const list = document.getElementById('colorList');
+  list.replaceChildren();
+  colors.forEach((color, index) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'color-item' + (index === selectedIdx ? ' selected' : '');
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', index === selectedIdx ? 'true' : 'false');
+
+    const position = document.createElement('span');
+    position.className = 'pos';
+    position.textContent = String(index + 1);
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    applySwatch(swatch, color);
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = color;
+
+    item.append(position, swatch, name);
+    item.addEventListener('click', () => {
+      selectedIdx = index;
+      syncInputsFromSelection();
+      render();
+    });
+    list.appendChild(item);
+  });
+
+  const hasSelection = selectedIdx >= 0 && selectedIdx < colors.length;
+  document.getElementById('deleteBtn').disabled = !hasSelection;
+  document.getElementById('moveUpBtn').disabled = !hasSelection || selectedIdx === 0;
+  document.getElementById('moveDownBtn').disabled = !hasSelection || selectedIdx === colors.length - 1;
+  document.getElementById('posInput').max = String(Math.max(1, colors.length + 1));
+}
+
+function syncInputsFromSelection() {
+  if (selectedIdx < 0 || selectedIdx >= colors.length) return;
+  const value = colors[selectedIdx];
+  document.getElementById('colorInput').value = value;
+  document.getElementById('posInput').value = String(selectedIdx + 1);
+  applySwatch(document.getElementById('colorSwatch'), value);
+  setError('');
+}
+
+function setInputValue(value) {
+  document.getElementById('colorInput').value = value || '';
+  selectedIdx = colors.findIndex(color => sameColor(color, value));
+  document.getElementById('posInput').value = String(selectedIdx >= 0 ? selectedIdx + 1 : colors.length + 1);
+  applySwatch(document.getElementById('colorSwatch'), value);
+  render();
+}
+
+function moveColor(delta) {
+  if (selectedIdx < 0 || selectedIdx >= colors.length) return;
+  const target = selectedIdx + delta;
+  if (target < 0 || target >= colors.length) return;
+  [colors[selectedIdx], colors[target]] = [colors[target], colors[selectedIdx]];
+  selectedIdx = target;
+  syncInputsFromSelection();
+  render();
+}
+
+function deleteColor() {
+  if (selectedIdx < 0 || selectedIdx >= colors.length) return;
+  const deleted = colors[selectedIdx];
+  colors.splice(selectedIdx, 1);
+  const nextValue = sameColor(deleted, currentValue)
+    ? (allowEmpty ? '' : (colors[0] || currentValue))
+    : currentValue;
+  setInputValue(nextValue);
+}
+
+function pickColor() {
+  BioDraw.send('pickColor', { value: document.getElementById('colorInput').value });
+}
+
+function saveColor() {
+  const value = document.getElementById('colorInput').value.trim();
+  if (!value && !allowEmpty) {
+    setError('颜色值不能为空。');
+    document.getElementById('colorInput').focus();
+    return;
+  }
+  setError('');
+  BioDraw.send('save', {
+    value,
+    position: parseInt(document.getElementById('posInput').value) || 1,
+    colors
+  });
+}
+
+function setError(message) { document.getElementById('colorError').textContent = message || ''; }
+
+document.getElementById('colorInput').addEventListener('input', event => {
+  applySwatch(document.getElementById('colorSwatch'), event.target.value);
+  setError('');
+});
+
+BioDraw.on('init', data => {
+  document.getElementById('dlgTitle').textContent = data.title || '颜色预设';
+  colors = Array.isArray(data.colors) ? data.colors.map(String) : [];
+  allowEmpty = !!data.allowEmpty;
+  currentValue = String(data.currentValue || '');
+  setInputValue(currentValue);
+});
+
+BioDraw.on('colorPicked', data => {
+  if (data.value) setInputValue(String(data.value));
+});
+
+BioDraw.on('validationError', data => setError(data.message || '颜色格式无效。'));
+</script>
+</body></html>

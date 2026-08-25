@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -20,6 +21,7 @@ namespace BioDraw
         private const string SettingsRootElement = "BioDrawAiImageSettings";
         public const int AiModelButtonCount = 12;
         public const int DefaultModelPreviewCount = 5;
+        private const long MaxDownloadedImageBytes = 64L * 1024L * 1024L;
 
 
         private static readonly Lazy<HttpClient> SharedHttpClient = new Lazy<HttpClient>(() =>
@@ -97,7 +99,7 @@ namespace BioDraw
                     {
                         DisplayName = (string)entry.Element("DisplayName") ?? "GPT-Image-2",
                         EndpointUrl = (string)entry.Element("EndpointUrl") ?? "https://api.apimart.ai/v1/images/generations",
-                        ApiToken = (string)entry.Element("ApiToken") ?? string.Empty,
+                        ApiToken = ReadApiToken(entry.Element("ApiToken")),
                         Model = (string)entry.Element("Model") ?? "gpt-image-2",
                         DefaultQuality = (string)entry.Element("DefaultQuality") ?? "auto",
                         DefaultFormat = (string)entry.Element("DefaultFormat") ?? "png",
@@ -121,6 +123,9 @@ namespace BioDraw
                         settings.DefaultWidth = w;
                         settings.DefaultHeight = h;
                     }
+
+                    settings.DefaultWidth = Math.Max(1, Math.Min(4096, settings.DefaultWidth));
+                    settings.DefaultHeight = Math.Max(1, Math.Min(4096, settings.DefaultHeight));
 
                     results.Add(settings);
                 }
@@ -204,7 +209,7 @@ namespace BioDraw
                     root.Add(new XElement("AiImageApi",
                         new XElement("DisplayName", s.DisplayName ?? string.Empty),
                         new XElement("EndpointUrl", s.EndpointUrl ?? string.Empty),
-                        new XElement("ApiToken", s.ApiToken ?? string.Empty),
+                        CreateApiTokenElement(s.ApiToken),
                         new XElement("Model", s.Model ?? string.Empty),
                         new XElement("DefaultWidth", s.DefaultWidth),
                         new XElement("DefaultHeight", s.DefaultHeight),
@@ -622,7 +627,7 @@ namespace BioDraw
 
                 string imageUrl = imageUrls[0];
 
-                var ext = "." + (format ?? "png").TrimStart('.');
+                var ext = "." + NormalizeOutputFormat(format);
                 var tempDir = Path.Combine(Path.GetTempPath(), "BioDraw", "AiImages");
                 Directory.CreateDirectory(tempDir);
                 outputFilePath = Path.Combine(tempDir,
@@ -638,7 +643,7 @@ namespace BioDraw
                     using (var response = SharedHttpClient.Value.SendAsync(request).Result)
                     {
                         response.EnsureSuccessStatusCode();
-                        var bytes = response.Content.ReadAsByteArrayAsync().Result;
+                        var bytes = ReadBoundedImageBytes(response);
                         File.WriteAllBytes(outputFilePath, bytes);
                     }
                 }
@@ -1043,9 +1048,11 @@ namespace BioDraw
 
             try
             {
-                if (settings == null || string.IsNullOrWhiteSpace(settings.EndpointUrl))
+                string endpointUrl;
+                if (settings == null ||
+                    !TryNormalizeHttpEndpoint(settings.EndpointUrl, out endpointUrl))
                 {
-                    errorMessage = "API settings invalid.";
+                    errorMessage = "API endpoint must be a valid HTTP or HTTPS URL.";
                     return false;
                 }
 
@@ -1061,11 +1068,16 @@ namespace BioDraw
                     return false;
                 }
 
+                width = Math.Max(1, Math.Min(4096, width));
+                height = Math.Max(1, Math.Min(4096, height));
+                quality = NormalizeQuality(quality);
+                format = NormalizeOutputFormat(format);
+
                 string model = settings.Model ?? "gpt-image-2";
-                bool isApiMart = IsApiMartEndpoint(settings.EndpointUrl);
+                bool isApiMart = IsApiMartEndpoint(endpointUrl);
                 bool useGpt2Style = ModelUsesAspectRatio(model);
 
-                string resolution = settings.Resolution ?? "2k";
+                string resolution = NormalizeResolution(settings.Resolution);
                 string requestJson = BuildImageRequestBody(
                     model, prompt, width, height, quality, format, resolution,
                     n: 1, imageUrls: null, useGptImage2Style: useGpt2Style);
@@ -1073,7 +1085,7 @@ namespace BioDraw
                 if (isApiMart)
                 {
                     string taskId = SubmitApiMartTask(
-                        settings.EndpointUrl, settings.ApiToken, requestJson,
+                        endpointUrl, settings.ApiToken, requestJson,
                         out errorMessage);
 
                     if (taskId == null)
@@ -1086,7 +1098,7 @@ namespace BioDraw
                 else
                 {
                     return LegacySyncImageRequest(
-                        settings.EndpointUrl, settings.ApiToken, requestJson,
+                        endpointUrl, settings.ApiToken, requestJson,
                         format, out outputFilePath, out errorMessage);
                 }
             }
@@ -1130,9 +1142,11 @@ namespace BioDraw
 
             try
             {
-                if (settings == null || string.IsNullOrWhiteSpace(settings.EndpointUrl))
+                string endpointUrl;
+                if (settings == null ||
+                    !TryNormalizeHttpEndpoint(settings.EndpointUrl, out endpointUrl))
                 {
-                    errorMessage = "API settings invalid.";
+                    errorMessage = "API endpoint must be a valid HTTP or HTTPS URL.";
                     return false;
                 }
 
@@ -1154,20 +1168,25 @@ namespace BioDraw
                     return false;
                 }
 
+                width = Math.Max(1, Math.Min(4096, width));
+                height = Math.Max(1, Math.Min(4096, height));
+                quality = NormalizeQuality(quality);
+                format = NormalizeOutputFormat(format);
+
                 string model = settings.Model ?? "gpt-image-2";
-                bool isApiMart = IsApiMartEndpoint(settings.EndpointUrl);
+                bool isApiMart = IsApiMartEndpoint(endpointUrl);
                 bool useGpt2Style = ModelUsesAspectRatio(model);
 
                 // Official ApiMart flow: upload the original image file to get a stable
                 // URL, then reference it via image_urls. Base64 is no longer supported by
                 // the generation API and inflates the request body, so we never inline it.
                 string imageUrl = UploadImageToApiMart(
-                    settings.EndpointUrl, settings.ApiToken, sourceImagePath, out errorMessage);
+                    endpointUrl, settings.ApiToken, sourceImagePath, out errorMessage);
                 if (string.IsNullOrWhiteSpace(imageUrl))
                     return false;
 
                 var imageUrls = new[] { imageUrl };
-                string resolution = settings.Resolution ?? "2k";
+                string resolution = NormalizeResolution(settings.Resolution);
                 string requestJson = BuildImageRequestBody(
                     model, prompt, width, height, quality, format, resolution,
                     n: 1, imageUrls: imageUrls, useGptImage2Style: useGpt2Style,
@@ -1176,7 +1195,7 @@ namespace BioDraw
                 if (isApiMart)
                 {
                     string taskId = SubmitApiMartTask(
-                        settings.EndpointUrl, settings.ApiToken, requestJson,
+                        endpointUrl, settings.ApiToken, requestJson,
                         out errorMessage);
 
                     if (taskId == null)
@@ -1189,7 +1208,7 @@ namespace BioDraw
                 else
                 {
                     return LegacySyncImageRequest(
-                        settings.EndpointUrl, settings.ApiToken, requestJson,
+                        endpointUrl, settings.ApiToken, requestJson,
                         format, out outputFilePath, out errorMessage);
                 }
             }
@@ -1491,7 +1510,7 @@ namespace BioDraw
 
             try
             {
-                var ext = "." + (format ?? "png").TrimStart('.');
+                var ext = "." + NormalizeOutputFormat(format);
                 var tempDir = Path.Combine(Path.GetTempPath(), "BioDraw", "AiImages");
                 Directory.CreateDirectory(tempDir);
                 filePath = Path.Combine(tempDir,
@@ -1507,7 +1526,7 @@ namespace BioDraw
                     using (var response = SharedHttpClient.Value.SendAsync(request).Result)
                     {
                         response.EnsureSuccessStatusCode();
-                        var bytes = response.Content.ReadAsByteArrayAsync().Result;
+                        var bytes = ReadBoundedImageBytes(response);
                         File.WriteAllBytes(filePath, bytes);
                     }
                 }
@@ -1779,8 +1798,19 @@ namespace BioDraw
 
             try
             {
+                if (string.IsNullOrWhiteSpace(base64) ||
+                    base64.Length > MaxDownloadedImageBytes * 2)
+                {
+                    error = "Base64 图片为空或超过 64 MB 限制。";
+                    return false;
+                }
                 var bytes = Convert.FromBase64String(base64);
-                var ext = "." + (format ?? "png").TrimStart('.');
+                if (bytes.LongLength > MaxDownloadedImageBytes)
+                {
+                    error = "Base64 图片超过 64 MB 限制。";
+                    return false;
+                }
+                var ext = "." + NormalizeOutputFormat(format);
                 var tempDir = Path.Combine(Path.GetTempPath(), "BioDraw", "AiImages");
                 Directory.CreateDirectory(tempDir);
                 filePath = Path.Combine(tempDir, "ai_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ext);
@@ -1898,6 +1928,87 @@ namespace BioDraw
                 .Replace("\n", "\\n")
                 .Replace("\r", "\\r")
                 .Replace("\t", "\\t");
+        }
+
+        private static bool TryNormalizeHttpEndpoint(string value, out string normalized)
+        {
+            normalized = string.Empty;
+            Uri uri;
+            if (!Uri.TryCreate((value ?? string.Empty).Trim(), UriKind.Absolute, out uri))
+                return false;
+            if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+                return false;
+            normalized = uri.AbsoluteUri;
+            return true;
+        }
+
+        private static string NormalizeQuality(string value)
+        {
+            value = (value ?? string.Empty).Trim().ToLowerInvariant();
+            return value == "low" || value == "medium" || value == "high"
+                ? value
+                : "auto";
+        }
+
+        private static string NormalizeOutputFormat(string value)
+        {
+            value = (value ?? string.Empty).Trim().TrimStart('.').ToLowerInvariant();
+            return value == "jpeg" || value == "webp" ? value : "png";
+        }
+
+        private static string NormalizeResolution(string value)
+        {
+            value = (value ?? string.Empty).Trim().ToLowerInvariant();
+            return value == "1k" || value == "4k" ? value : "2k";
+        }
+
+        private static byte[] ReadBoundedImageBytes(HttpResponseMessage response)
+        {
+            var length = response.Content.Headers.ContentLength;
+            if (length.HasValue && length.Value > MaxDownloadedImageBytes)
+                throw new InvalidDataException("Downloaded image exceeds the 64 MB limit.");
+
+            response.Content.LoadIntoBufferAsync(MaxDownloadedImageBytes)
+                .GetAwaiter().GetResult();
+            var bytes = response.Content.ReadAsByteArrayAsync().Result;
+            if (bytes.LongLength > MaxDownloadedImageBytes)
+                throw new InvalidDataException("Downloaded image exceeds the 64 MB limit.");
+            return bytes;
+        }
+
+        private static string ReadApiToken(XElement element)
+        {
+            if (element == null) return string.Empty;
+            var value = element.Value ?? string.Empty;
+            var protection = (string)element.Attribute("Protection");
+            if (!string.Equals(protection, "DPAPI-CurrentUser", StringComparison.Ordinal))
+                return value;
+
+            try
+            {
+                var encrypted = Convert.FromBase64String(value);
+                var plain = ProtectedData.Unprotect(
+                    encrypted, null, DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(plain);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static XElement CreateApiTokenElement(string token)
+        {
+            var element = new XElement("ApiToken");
+            if (string.IsNullOrEmpty(token)) return element;
+
+            var plain = Encoding.UTF8.GetBytes(token);
+            var encrypted = ProtectedData.Protect(
+                plain, null, DataProtectionScope.CurrentUser);
+            element.Value = Convert.ToBase64String(encrypted);
+            element.SetAttributeValue("Protection", "DPAPI-CurrentUser");
+            return element;
         }
 
         private static string GetSettingsFilePath()

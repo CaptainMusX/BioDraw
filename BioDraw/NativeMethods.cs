@@ -44,6 +44,20 @@ namespace BioDraw
         [DllImport("gdi32.dll", SetLastError = true)]
         internal static extern bool DeleteObject(IntPtr hObject);
 
+        [DllImport("dwmapi.dll")]
+        internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        [DllImport("user32.dll")]
+        internal static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+
+        internal const int WM_NCLBUTTONDOWN = 0xA1;
+        internal const int HT_CAPTION = 0x2;
+        internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+        internal const int DWMWCP_ROUND = 2;
+
         internal static bool IsVirtualKeyDown(int keyCode)
         {
             return (GetAsyncKeyState(keyCode) & 0x8000) != 0;

@@ -963,6 +963,25 @@ namespace BioDraw
                 return;
             }
 
+            if (UseCustomMaterialLibrary() &&
+                (!IsPathWithinRoot(materialLibraryPath, item.FilePath) ||
+                 HasReparsePointBetween(materialLibraryPath, item.FilePath)))
+            {
+                MessageBox.Show("素材路径超出当前素材库或经过链接目录，已拒绝删除。", "BioDraw",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "确认永久删除素材 \"" + (item.Name ?? Path.GetFileName(item.FilePath)) + "\" 吗？",
+                "BioDraw",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (confirm != DialogResult.Yes)
+            {
+                return;
+            }
+
             try
             {
                 materialPreviewCache.Remove(item.FilePath);
@@ -993,6 +1012,15 @@ namespace BioDraw
                 materialSearchCacheEntries = null;
                 InvalidateMaterialPreview();
                 ImageReplacePipeline.SetStatusText("BioDraw：素材文件不存在，已刷新列表。");
+                return;
+            }
+
+            if (UseCustomMaterialLibrary() &&
+                (!IsPathWithinRoot(materialLibraryPath, item.FilePath) ||
+                 HasReparsePointBetween(materialLibraryPath, item.FilePath)))
+            {
+                MessageBox.Show("素材路径超出当前素材库或经过链接目录，已拒绝重命名。", "BioDraw",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -1347,11 +1375,10 @@ namespace BioDraw
 
         public void OnAbout(Office.IRibbonControl control)
         {
-            MessageBox.Show(
-                "由 CaptainMus 开发的一款用于科研绘图的 PowerPoint 插件，欢迎使用！",
-                "关于 BioDraw",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+            using (var dialog = new AboutDialog())
+            {
+                dialog.ShowDialog();
+            }
         }
 
         public void OnOpenProjectAddress(Office.IRibbonControl control)
@@ -1450,13 +1477,14 @@ namespace BioDraw
             }
 
             var name = (level1InputText ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(name))
+            string fullPath;
+            string pathError;
+            if (!TryBuildManagedDirectoryPath(
+                    materialLibraryPath, name, out fullPath, out pathError))
             {
-                message = "请输入类别名称。";
+                message = pathError;
                 return false;
             }
-
-            var fullPath = Path.Combine(materialLibraryPath, name);
             var isDelete = (Control.ModifierKeys & Keys.Control) == Keys.Control;
 
             try
@@ -1467,6 +1495,23 @@ namespace BioDraw
                     {
                         message = "要删除的类别目录不存在。";
                         return false;
+                    }
+
+                    if (HasReparsePointBetween(materialLibraryPath, fullPath))
+                    {
+                        message = "该目录包含链接或挂载点，为避免越界删除，已拒绝操作。";
+                        return false;
+                    }
+
+                    var confirm = MessageBox.Show(
+                        "确认永久删除类别 \"" + name + "\" 及其中全部素材吗？",
+                        "BioDraw",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (confirm != DialogResult.Yes)
+                    {
+                        message = "BioDraw：已取消删除。";
+                        return true;
                     }
 
                     Directory.Delete(fullPath, true);
@@ -1517,15 +1562,24 @@ namespace BioDraw
                 message = "当前类别目录不存在，请先创建类别。";
                 return false;
             }
-
-            var level2Name = (level2InputText ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(level2Name))
+            if (HasReparsePointBetween(materialLibraryPath, level1Path))
             {
-                message = "请输入子类名称。";
+                message = "当前类别是链接或挂载目录，已拒绝管理其子目录。";
                 return false;
             }
 
-            var level2Path = Path.Combine(level1Path, level2Name);
+            var level2Name = (level2InputText ?? string.Empty).Trim();
+            string level2Path;
+            string pathError;
+            if (!TryBuildManagedDirectoryPath(
+                    level1Path, level2Name, out level2Path, out pathError) ||
+                !IsPathWithinRoot(materialLibraryPath, level2Path))
+            {
+                message = string.IsNullOrWhiteSpace(pathError)
+                    ? "子类目录超出素材库范围，已拒绝操作。"
+                    : pathError;
+                return false;
+            }
             var isDelete = (Control.ModifierKeys & Keys.Control) == Keys.Control;
             try
             {
@@ -1535,6 +1589,23 @@ namespace BioDraw
                     {
                         message = "要删除的子类目录不存在。";
                         return false;
+                    }
+
+                    if (HasReparsePointBetween(materialLibraryPath, level2Path))
+                    {
+                        message = "该目录包含链接或挂载点，为避免越界删除，已拒绝操作。";
+                        return false;
+                    }
+
+                    var confirm = MessageBox.Show(
+                        "确认永久删除子类 \"" + level2Name + "\" 及其中全部素材吗？",
+                        "BioDraw",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+                    if (confirm != DialogResult.Yes)
+                    {
+                        message = "BioDraw：已取消删除。";
+                        return true;
                     }
 
                     Directory.Delete(level2Path, true);
@@ -1897,11 +1968,23 @@ namespace BioDraw
             }
 
             EnsureImageReplaceInputValues();
-            var sourceColor = PresetManager.NormalizeColorInputText(imageReplaceSourceColorInput);
-            var newColor = PresetManager.NormalizeColorInputText(imageReplaceNewColorInput);
-            if (string.IsNullOrWhiteSpace(sourceColor))
+            string sourceColor;
+            if (!PresetManager.TryNormalizeImageMagickColor(
+                    imageReplaceSourceColorInput, false, out sourceColor))
             {
-                MessageBox.Show("原色不能为空。", "BioDraw");
+                MessageBox.Show(
+                    "原色格式无效。请使用颜色名称、十六进制颜色或 rgb/rgba 表达式。",
+                    "BioDraw");
+                return;
+            }
+
+            string newColor;
+            if (!PresetManager.TryNormalizeImageMagickColor(
+                    imageReplaceNewColorInput, true, out newColor))
+            {
+                MessageBox.Show(
+                    "新色格式无效。请使用颜色名称、十六进制颜色或 rgb/rgba 表达式；留空表示透明。",
+                    "BioDraw");
                 return;
             }
 
@@ -2336,7 +2419,7 @@ namespace BioDraw
                 }
             }
 
-            using (var dialog = new AiImageDialog(entry, settingsList, w, h,
+            using (var dialog = new AiImageWebDialog(entry, settingsList, w, h,
                 quality, effective.DefaultFormat))
             {
                 dialog.ShowDialog();
@@ -2347,8 +2430,9 @@ namespace BioDraw
         {
             var settingsList = aiImageSettingsList ?? AiImageService.LoadModelSettings();
             aiImageSettingsList = settingsList;
+            aiGlobalSettings = aiGlobalSettings ?? AiImageService.LoadGlobalSettings();
 
-            using (var dialog = new AiImageSettingsDialog(entry, settingsList))
+            using (var dialog = new ModelSettingsWebDialog(entry, settingsList))
             {
                 if (hasAiSettingsDialogBounds)
                 {
@@ -2513,7 +2597,7 @@ namespace BioDraw
             aiImageSettingsList = settingsList;
             aiGlobalSettings = aiGlobalSettings ?? AiImageService.LoadGlobalSettings();
 
-            using (var dialog = new AiGlobalSettingsDialog(aiGlobalSettings))
+            using (var dialog = new GlobalSettingsWebDialog(aiGlobalSettings))
             {
                 if (hasAiGlobalSettingsDialogBounds)
                 {
@@ -2545,7 +2629,7 @@ namespace BioDraw
             aiImageSettingsList = settingsList;
             aiGlobalSettings = aiGlobalSettings ?? AiImageService.LoadGlobalSettings();
 
-            using (var dialog = new ImgGlobalSettingsDialog(aiGlobalSettings))
+            using (var dialog = new ImgGlobalSettingsWebDialog(aiGlobalSettings))
             {
                 if (hasImgGlobalSettingsDialogBounds)
                 {
@@ -2868,7 +2952,7 @@ namespace BioDraw
                 }
             }
 
-            using (var dialog = new ImgToImgDialog(entry, settingsList, w, h, quality, effective.DefaultFormat))
+            using (var dialog = new ImgToImgWebDialog(entry, settingsList, w, h, quality, effective.DefaultFormat))
             {
                 dialog.ShowDialog();
             }
@@ -3244,380 +3328,27 @@ namespace BioDraw
             {
                 return false;
             }
-            var dialogSelectedValue = selectedValue;
-            var currentNormalizedValue = PresetManager.NormalizeColorInputText(currentValue);
-            var latestCommittedValue = currentNormalizedValue;
 
-            using (var dialog = new Form())
-            using (var listBox = new ListBox())
-            using (var lblSortOrder = new Label())
-            using (var numSortOrder = new NumericUpDown())
-            using (var inputBox = new TextBox())
-            using (var pickButton = new Button())
-            using (var saveButton = new Button())
-            using (var deleteButton = new Button())
-            {
-                dialog.Text = title;
-                dialog.FormBorderStyle = FormBorderStyle.Sizable;
-                dialog.StartPosition = FormStartPosition.CenterScreen;
-                dialog.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
-                dialog.BackColor = Color.FromArgb(244, 247, 252);
-                dialog.ForeColor = Color.FromArgb(32, 41, 57);
-                dialog.AutoScaleMode = AutoScaleMode.Dpi;
-                dialog.MinimizeBox = true;
-                dialog.MaximizeBox = true;
-                dialog.ShowInTaskbar = false;
-                dialog.MinimumSize = new Size(620, 280);
-                dialog.ClientSize = new Size(680, 300);
-
-                listBox.BorderStyle = BorderStyle.FixedSingle;
-                listBox.IntegralHeight = false;
-                listBox.BackColor = Color.White;
-                listBox.ForeColor = Color.FromArgb(32, 41, 57);
-                listBox.AllowDrop = true;
-
-                lblSortOrder.Text = "位置";
-                lblSortOrder.TextAlign = ContentAlignment.MiddleLeft;
-                lblSortOrder.ForeColor = Color.FromArgb(32, 41, 57);
-
-                numSortOrder.Minimum = 1;
-                numSortOrder.Maximum = Math.Max(1, options.Count + 1);
-                numSortOrder.DecimalPlaces = 0;
-                numSortOrder.TextAlign = HorizontalAlignment.Right;
-                numSortOrder.BorderStyle = BorderStyle.FixedSingle;
-                numSortOrder.BackColor = Color.White;
-                numSortOrder.ForeColor = Color.FromArgb(32, 41, 57);
-                numSortOrder.Value = 1;
-
-                inputBox.BorderStyle = BorderStyle.FixedSingle;
-                inputBox.BackColor = Color.White;
-                inputBox.ForeColor = Color.FromArgb(32, 41, 57);
-                inputBox.Text = selectedValue;
-
-                pickButton.Text = "取色";
-                saveButton.Text = "保存";
-                deleteButton.Text = "删除";
-
-                void StyleActionButton(Button button, bool primary, bool danger)
-                {
-                    button.FlatStyle = FlatStyle.Flat;
-                    button.FlatAppearance.BorderSize = 1;
-                    if (danger)
-                    {
-                        button.FlatAppearance.BorderColor = Color.FromArgb(220, 53, 69);
-                        button.BackColor = Color.FromArgb(220, 53, 69);
-                        button.ForeColor = Color.White;
-                    }
-                    else
-                    {
-                        button.FlatAppearance.BorderColor = primary ? Color.FromArgb(24, 118, 242) : Color.FromArgb(189, 198, 213);
-                        button.BackColor = primary ? Color.FromArgb(24, 118, 242) : Color.White;
-                        button.ForeColor = primary ? Color.White : Color.FromArgb(43, 52, 69);
-                    }
-                    button.UseVisualStyleBackColor = false;
-                    button.Cursor = Cursors.Hand;
-                }
-
-                StyleActionButton(pickButton, false, false);
-                StyleActionButton(saveButton, true, false);
-                StyleActionButton(deleteButton, false, true);
-
-                Action syncSortOrderMaximum = () =>
-                {
-                    numSortOrder.Maximum = Math.Max(1, options.Count + 1);
-                    if (numSortOrder.Value > numSortOrder.Maximum)
-                    {
-                        numSortOrder.Value = numSortOrder.Maximum;
-                    }
-                };
-
-                Action syncSortOrderFromInput = () =>
-                {
-                    var selected = (inputBox.Text ?? string.Empty).Trim();
-                    var index = PresetManager.FindColorOptionIndex(options, selected);
-                    if (index >= 0)
-                    {
-                        numSortOrder.Value = Math.Min(numSortOrder.Maximum, index + 1);
-                        return;
-                    }
-                    numSortOrder.Value = numSortOrder.Maximum;
-                };
-
-                Action refreshList = () =>
-                {
-                    var selected = (inputBox.Text ?? string.Empty).Trim();
-                    syncSortOrderMaximum();
-                    listBox.BeginUpdate();
-                    listBox.Items.Clear();
-                    foreach (var option in options)
-                    {
-                        listBox.Items.Add(option);
-                    }
-                    listBox.EndUpdate();
-                    var index = PresetManager.FindColorOptionIndex(options, selected);
-                    if (index >= 0)
-                    {
-                        listBox.SelectedIndex = index;
-                    }
-                    syncSortOrderFromInput();
-                };
-
-                var dragStartIndex = -1;
-                var dragStartPoint = Point.Empty;
-
-                listBox.SelectedIndexChanged += (sender, args) =>
-                {
-                    if (listBox.SelectedIndex >= 0 && listBox.SelectedIndex < listBox.Items.Count)
-                    {
-                        inputBox.Text = listBox.Items[listBox.SelectedIndex].ToString() ?? string.Empty;
-                        syncSortOrderFromInput();
-                    }
-                };
-
-                listBox.MouseDown += (sender, args) =>
-                {
-                    if (args.Button != MouseButtons.Left)
-                    {
-                        dragStartIndex = -1;
-                        return;
-                    }
-
-                    dragStartPoint = args.Location;
-                    dragStartIndex = listBox.IndexFromPoint(args.Location);
-                    if (dragStartIndex >= 0 && dragStartIndex < listBox.Items.Count)
-                    {
-                        listBox.SelectedIndex = dragStartIndex;
-                    }
-                };
-
-                listBox.MouseMove += (sender, args) =>
-                {
-                    if (args.Button != MouseButtons.Left || dragStartIndex < 0 || dragStartIndex >= listBox.Items.Count)
-                    {
-                        return;
-                    }
-
-                    var dragSize = SystemInformation.DragSize;
-                    var dragRect = new Rectangle(
-                        dragStartPoint.X - dragSize.Width / 2,
-                        dragStartPoint.Y - dragSize.Height / 2,
-                        dragSize.Width,
-                        dragSize.Height);
-                    if (dragRect.Contains(args.Location))
-                    {
-                        return;
-                    }
-
-                    var dragValue = listBox.Items[dragStartIndex].ToString() ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(dragValue))
-                    {
-                        return;
-                    }
-
-                    listBox.DoDragDrop(dragValue, DragDropEffects.Move);
-                    dragStartIndex = -1;
-                };
-
-                listBox.DragOver += (sender, args) =>
-                {
-                    if (!args.Data.GetDataPresent(typeof(string)))
-                    {
-                        args.Effect = DragDropEffects.None;
-                        return;
-                    }
-                    args.Effect = DragDropEffects.Move;
-                };
-
-                listBox.DragDrop += (sender, args) =>
-                {
-                    if (!args.Data.GetDataPresent(typeof(string)))
-                    {
-                        return;
-                    }
-
-                    var draggedValue = args.Data.GetData(typeof(string)) as string ?? string.Empty;
-                    if (string.IsNullOrWhiteSpace(draggedValue))
-                    {
-                        return;
-                    }
-
-                    var sourceIndex = PresetManager.FindColorOptionIndex(options, draggedValue);
-                    if (sourceIndex < 0)
-                    {
-                        return;
-                    }
-
-                    var dropPoint = listBox.PointToClient(new Point(args.X, args.Y));
-                    int targetInsertIndex;
-                    if (dropPoint.Y < 0)
-                    {
-                        targetInsertIndex = 0;
-                    }
-                    else if (options.Count > 0 && dropPoint.Y > listBox.GetItemRectangle(options.Count - 1).Bottom)
-                    {
-                        targetInsertIndex = options.Count;
-                    }
-                    else
-                    {
-                        var targetIndex = listBox.IndexFromPoint(dropPoint);
-                        targetInsertIndex = targetIndex < 0 ? options.Count : targetIndex;
-                    }
-                    targetInsertIndex = Math.Max(0, Math.Min(targetInsertIndex, options.Count));
-
-                    if (targetInsertIndex == sourceIndex || targetInsertIndex == sourceIndex + 1)
-                    {
-                        return;
-                    }
-
-                    options.RemoveAt(sourceIndex);
-                    if (sourceIndex < targetInsertIndex)
-                    {
-                        targetInsertIndex--;
-                    }
-                    targetInsertIndex = Math.Max(0, Math.Min(targetInsertIndex, options.Count));
-                    options.Insert(targetInsertIndex, draggedValue);
-
-                    inputBox.Text = draggedValue;
-                    dialogSelectedValue = draggedValue;
-                    latestCommittedValue = draggedValue;
-                    refreshList();
-                    PersistImageReplaceInputMemory();
-                    InvalidateImageReplaceRibbonControls();
-                };
-
-                pickButton.Click += (sender, args) =>
+            using (var dialog = new ColorPresetWebDialog(
+                title, options, selectedValue, allowEmpty,
+                onPickColor: (initial) =>
                 {
                     string colorToken;
                     string errorMessage;
-                    if (TryPickColorWithPowerPoint(false, inputBox.Text, out colorToken, out errorMessage))
-                    {
-                        inputBox.Text = colorToken;
-                        return;
-                    }
-
+                    if (TryPickColorWithPowerPoint(false, initial, out colorToken, out errorMessage))
+                        return colorToken;
                     if (!string.IsNullOrWhiteSpace(errorMessage))
-                    {
                         MessageBox.Show(errorMessage, "BioDraw");
-                    }
-                };
-
-                saveButton.Click += (sender, args) =>
+                    return null;
+                },
+                onPersist: () => PersistImageReplaceInputMemory(),
+                onInvalidate: () => InvalidateImageReplaceRibbonControls()))
+            {
+                if (dialog.ShowDialog() != DialogResult.OK)
                 {
-                    var value = (inputBox.Text ?? string.Empty).Trim();
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        return;
-                    }
-
-                    var position = Convert.ToInt32(numSortOrder.Value, CultureInfo.InvariantCulture);
-                    PresetManager.UpsertColorOptionAtPosition(options, value, position);
-                    inputBox.Text = value;
-                    dialogSelectedValue = value;
-                    latestCommittedValue = value;
-                    refreshList();
-                    PersistImageReplaceInputMemory();
-                    InvalidateImageReplaceRibbonControls();
-                };
-
-                deleteButton.Click += (sender, args) =>
-                {
-                    var value = (inputBox.Text ?? string.Empty).Trim();
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        return;
-                    }
-
-                    if (!PresetManager.RemoveColorOption(options, value))
-                    {
-                        return;
-                    }
-
-                    if (string.Equals(currentNormalizedValue, value, StringComparison.OrdinalIgnoreCase))
-                    {
-                        dialogSelectedValue = allowEmpty ? string.Empty : (options.FirstOrDefault() ?? currentNormalizedValue);
-                    }
-                    else
-                    {
-                        dialogSelectedValue = currentNormalizedValue;
-                    }
-
-                    latestCommittedValue = dialogSelectedValue;
-                    inputBox.Text = dialogSelectedValue;
-                    refreshList();
-                    PersistImageReplaceInputMemory();
-                    InvalidateImageReplaceRibbonControls();
-                };
-
-                dialog.FormClosing += (sender, args) =>
-                {
-                    var value = (inputBox.Text ?? string.Empty).Trim();
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        dialogSelectedValue = allowEmpty ? string.Empty : latestCommittedValue;
-                    }
-                    else
-                    {
-                        dialogSelectedValue = value;
-                    }
-                };
-
-                void ApplyDialogLayout()
-                {
-                    var margin = 24;
-                    var hGap = 16;
-                    var leftWidth = 180;
-                    var rightWidth = 300;
-                    var rightX = Math.Max(margin + leftWidth + hGap, dialog.ClientSize.Width - margin - rightWidth);
-                    var rowHeight = 40;
-                    var buttonGap = 10;
-                    var buttonWidth = (rightWidth - buttonGap) / 2;
-                    var pickWidth = 96;
-                    var inputWidth = Math.Max(96, rightWidth - pickWidth - buttonGap);
-                    var leftX = margin;
-                    var top = margin;
-                    var rowGap = 10;
-                    var saveDeleteY = dialog.ClientSize.Height - margin - rowHeight;
-
-                    listBox.Location = new Point(leftX, top);
-                    listBox.Size = new Size(leftWidth, Math.Max(120, saveDeleteY - top - buttonGap));
-
-                    inputBox.Location = new Point(rightX, top);
-                    inputBox.Size = new Size(inputWidth, rowHeight);
-
-                    pickButton.Location = new Point(inputBox.Right + buttonGap, top);
-                    pickButton.Size = new Size(pickWidth, rowHeight);
-
-                    var positionY = top + rowHeight + rowGap;
-                    lblSortOrder.Location = new Point(rightX, positionY);
-                    lblSortOrder.Size = new Size(120, rowHeight);
-                    numSortOrder.Location = new Point(lblSortOrder.Right + 12, positionY);
-                    numSortOrder.Size = new Size(120, rowHeight);
-
-                    saveButton.Location = new Point(rightX, saveDeleteY);
-                    saveButton.Size = new Size(buttonWidth, rowHeight);
-
-                    deleteButton.Location = new Point(saveButton.Right + buttonGap, saveDeleteY);
-                    deleteButton.Size = new Size(buttonWidth, rowHeight);
-
-                    ApplyRoundedRegion(pickButton, 7);
-                    ApplyRoundedRegion(saveButton, 7);
-                    ApplyRoundedRegion(deleteButton, 7);
+                    return false;
                 }
-
-                dialog.Controls.Add(listBox);
-                dialog.Controls.Add(inputBox);
-                dialog.Controls.Add(pickButton);
-                dialog.Controls.Add(lblSortOrder);
-                dialog.Controls.Add(numSortOrder);
-                dialog.Controls.Add(saveButton);
-                dialog.Controls.Add(deleteButton);
-                dialog.Resize += (_, __) => ApplyDialogLayout();
-                ApplyDialogLayout();
-
-                EnsureImageReplaceColorOptions();
-                refreshList();
-                dialog.ShowDialog();
-                selectedValue = dialogSelectedValue;
+                selectedValue = dialog.SelectedValue;
                 return true;
             }
         }
@@ -3967,6 +3698,109 @@ namespace BioDraw
             return string.IsNullOrWhiteSpace(result) ? "Object" : result;
         }
 
+        private static bool TryBuildManagedDirectoryPath(
+            string parentPath,
+            string requestedName,
+            out string fullPath,
+            out string errorMessage)
+        {
+            fullPath = string.Empty;
+            errorMessage = string.Empty;
+            var name = (requestedName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                errorMessage = "请输入目录名称。";
+                return false;
+            }
+            if (name.Length > 100 || name == "." || name == ".." ||
+                name.EndsWith(".", StringComparison.Ordinal) ||
+                name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                IsReservedWindowsName(name))
+            {
+                errorMessage = "目录名称无效；不能包含路径分隔符、保留名称或非法字符。";
+                return false;
+            }
+
+            try
+            {
+                var parent = Path.GetFullPath(parentPath ?? string.Empty);
+                var candidate = Path.GetFullPath(Path.Combine(parent, name));
+                if (!IsPathWithinRoot(parent, candidate))
+                {
+                    errorMessage = "目录路径超出素材库范围，已拒绝操作。";
+                    return false;
+                }
+                fullPath = candidate;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "目录路径无效：" + ex.Message;
+                return false;
+            }
+        }
+
+        private static bool IsReservedWindowsName(string name)
+        {
+            var stem = (name ?? string.Empty).Split('.')[0].ToUpperInvariant();
+            if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL")
+                return true;
+            if (stem.Length == 4 &&
+                (stem.StartsWith("COM", StringComparison.Ordinal) ||
+                 stem.StartsWith("LPT", StringComparison.Ordinal)) &&
+                stem[3] >= '1' && stem[3] <= '9')
+                return true;
+            return false;
+        }
+
+        private static bool IsPathWithinRoot(string rootPath, string candidatePath)
+        {
+            try
+            {
+                var root = Path.GetFullPath(rootPath ?? string.Empty)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var candidate = Path.GetFullPath(candidatePath ?? string.Empty);
+                var prefix = root + Path.DirectorySeparatorChar;
+                return candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool HasReparsePointBetween(string rootPath, string candidatePath)
+        {
+            try
+            {
+                var root = Path.GetFullPath(rootPath ?? string.Empty)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var candidate = Path.GetFullPath(candidatePath ?? string.Empty)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (!IsPathWithinRoot(root, candidate)) return true;
+
+                var relative = candidate.Substring(root.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var current = root;
+                foreach (var segment in relative.Split(
+                    new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                    StringSplitOptions.RemoveEmptyEntries))
+                {
+                    current = Path.Combine(current, segment);
+                    if (Directory.Exists(current) &&
+                        (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         private void InvalidateImageReplaceRibbonControls()
         {
             ribbon?.InvalidateControl("ApplyImageReplace");
@@ -4171,257 +4005,27 @@ namespace BioDraw
             setAsDefault = false;
             deleteRequested = false;
 
-            using (var form = new Form())
-            using (var lblPresetName = new Label())
-            using (var txtPresetName = new TextBox())
-            using (var lblSortOrder = new Label())
-            using (var numSortOrder = new NumericUpDown())
-            using (var lblFuzz = new Label())
-            using (var numFuzz = new NumericUpDown())
-            using (var tbFuzz = new TrackBar())
-            using (var chkDefault = new CheckBox())
-            using (var btnDelete = new Button())
-            using (var btnOk = new Button())
+            using (var dialog = new PresetEditorWebDialog(
+                source,
+                canDelete,
+                Math.Max(1, imageReplacePresets.Count + 1),
+                presetEditorSaveAsDefaultChecked))
             {
-                form.Text = "颜色替换参数";
-                form.FormBorderStyle = FormBorderStyle.Sizable;
-                form.StartPosition = FormStartPosition.CenterScreen;
-                form.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Regular, GraphicsUnit.Point);
-                form.BackColor = Color.FromArgb(244, 247, 252);
-                form.ForeColor = Color.FromArgb(32, 41, 57);
-                form.AutoScaleMode = AutoScaleMode.Dpi;
-                form.MinimizeBox = false;
-                form.MaximizeBox = true;
-                form.MinimumSize = new Size(760, 360);
-                form.ClientSize = new Size(820, 400);
-                if (hasPresetEditorBounds)
-                {
-                    form.StartPosition = FormStartPosition.Manual;
-                    form.Bounds = presetEditorBounds;
-                }
-
-                lblPresetName.Text = "名称";
-                lblPresetName.TextAlign = ContentAlignment.MiddleLeft;
-                txtPresetName.Text = source.Name;
-                txtPresetName.BorderStyle = BorderStyle.FixedSingle;
-
-                lblSortOrder.Text = "位置";
-                lblSortOrder.TextAlign = ContentAlignment.MiddleLeft;
-                numSortOrder.Minimum = 1;
-                numSortOrder.Maximum = Math.Max(1, imageReplacePresets.Count + 1);
-                numSortOrder.DecimalPlaces = 0;
-                numSortOrder.Value = Convert.ToDecimal(Math.Max(1, Math.Min((int)numSortOrder.Maximum, source.SortOrder)), CultureInfo.InvariantCulture);
-
-                lblFuzz.Text = "近似度";
-                lblFuzz.TextAlign = ContentAlignment.MiddleLeft;
-                numFuzz.Minimum = 0;
-                numFuzz.Maximum = 100;
-                numFuzz.DecimalPlaces = 1;
-                numFuzz.Increment = 0.1m;
-                numFuzz.Value = Convert.ToDecimal(PresetManager.NormalizeFuzzPercent(source.FuzzPercent), CultureInfo.InvariantCulture);
-                numFuzz.BorderStyle = BorderStyle.FixedSingle;
-                numFuzz.TextAlign = HorizontalAlignment.Right;
-
-                tbFuzz.Minimum = 0;
-                tbFuzz.Maximum = 1000;
-                tbFuzz.TickFrequency = 50;
-                tbFuzz.SmallChange = 5;
-                tbFuzz.LargeChange = 5;
-                tbFuzz.AutoSize = false;
-                tbFuzz.Value = Math.Max(tbFuzz.Minimum, Math.Min(tbFuzz.Maximum, (int)Math.Round(Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture) * 10, MidpointRounding.AwayFromZero)));
-
-                chkDefault.Text = "保存为默认预设";
-                chkDefault.Checked = presetEditorSaveAsDefaultChecked;
-                chkDefault.AutoSize = true;
-
-                btnDelete.Text = "删除";
-                btnDelete.Enabled = canDelete;
-                btnOk.Text = "保存";
-                btnOk.DialogResult = DialogResult.OK;
-
-                void StyleInputControl(Control control)
-                {
-                    control.BackColor = Color.White;
-                    control.ForeColor = Color.FromArgb(32, 41, 57);
-                }
-
-                void StyleActionButton(Button button, bool primary, bool danger)
-                {
-                    button.FlatStyle = FlatStyle.Flat;
-                    button.FlatAppearance.BorderSize = 1;
-                    if (danger)
-                    {
-                        button.FlatAppearance.BorderColor = Color.FromArgb(220, 53, 69);
-                        button.BackColor = Color.FromArgb(220, 53, 69);
-                        button.ForeColor = Color.White;
-                    }
-                    else
-                    {
-                        button.FlatAppearance.BorderColor = primary ? Color.FromArgb(24, 118, 242) : Color.FromArgb(189, 198, 213);
-                        button.BackColor = primary ? Color.FromArgb(24, 118, 242) : Color.White;
-                        button.ForeColor = primary ? Color.White : Color.FromArgb(43, 52, 69);
-                    }
-                    button.UseVisualStyleBackColor = false;
-                    button.Cursor = Cursors.Hand;
-                }
-
-                StyleInputControl(txtPresetName);
-                StyleInputControl(numSortOrder);
-                StyleInputControl(numFuzz);
-                chkDefault.ForeColor = Color.FromArgb(43, 52, 69);
-                StyleActionButton(btnOk, true, false);
-                StyleActionButton(btnDelete, false, true);
-
-                var syncingFuzz = false;
-                void SyncFuzzToTrackBar()
-                {
-                    if (syncingFuzz)
-                    {
-                        return;
-                    }
-                    syncingFuzz = true;
-                    var value = Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture);
-                    var trackValue = Math.Max(tbFuzz.Minimum, Math.Min(tbFuzz.Maximum, (int)Math.Round(value * 10, MidpointRounding.AwayFromZero)));
-                    tbFuzz.Value = trackValue;
-                    syncingFuzz = false;
-                }
-
-                void SyncFuzzToNumeric()
-                {
-                    if (syncingFuzz)
-                    {
-                        return;
-                    }
-                    syncingFuzz = true;
-                    numFuzz.Value = Convert.ToDecimal(tbFuzz.Value / 10.0, CultureInfo.InvariantCulture);
-                    syncingFuzz = false;
-                }
-
-                numFuzz.ValueChanged += (_, __) => SyncFuzzToTrackBar();
-                tbFuzz.Scroll += (_, __) => SyncFuzzToNumeric();
-                tbFuzz.MouseEnter += (_, __) => tbFuzz.Focus();
-                tbFuzz.MouseWheel += (_, e) =>
-                {
-                    var delta = e.Delta > 0 ? 5 : -5;
-                    var next = Math.Max(tbFuzz.Minimum, Math.Min(tbFuzz.Maximum, tbFuzz.Value + delta));
-                    if (next == tbFuzz.Value)
-                    {
-                        return;
-                    }
-                    tbFuzz.Value = next;
-                    SyncFuzzToNumeric();
-                };
-
-                void ApplyDialogLayout()
-                {
-                    var margin = 24;
-                    var labelWidth = 120;
-                    var fieldGap = 12;
-                    var rowHeight = 40;
-                    var rowGap = 18;
-                    var buttonWidth = 128;
-                    var buttonHeight = 40;
-
-                    var fieldX = margin + labelWidth + fieldGap;
-                    var rightEdge = form.ClientSize.Width - margin;
-                    var top = margin + 8;
-
-                    lblPresetName.Location = new Point(margin, top);
-                    lblPresetName.Size = new Size(labelWidth, rowHeight);
-                    txtPresetName.Location = new Point(fieldX, top);
-                    txtPresetName.Size = new Size(rightEdge - fieldX, rowHeight);
-
-                    var row2Y = top + rowHeight + rowGap;
-                    lblSortOrder.Location = new Point(margin, row2Y);
-                    lblSortOrder.Size = new Size(labelWidth, rowHeight);
-                    numSortOrder.Location = new Point(fieldX, row2Y);
-                    numSortOrder.Size = new Size(180, rowHeight);
-
-                    var row3Y = row2Y + rowHeight + rowGap;
-                    lblFuzz.Location = new Point(margin, row3Y);
-                    lblFuzz.Size = new Size(labelWidth, rowHeight);
-                    numFuzz.Location = new Point(fieldX, row3Y);
-                    numFuzz.Size = new Size(180, rowHeight);
-                    tbFuzz.Location = new Point(numFuzz.Right + 14, row3Y + 4);
-                    tbFuzz.Size = new Size(Math.Max(200, rightEdge - tbFuzz.Left), rowHeight - 8);
-
-                    var contentBottom = row3Y + rowHeight;
-                    var preferredBottomY = contentBottom + 22;
-                    var bottomY = Math.Max(preferredBottomY, form.ClientSize.Height - margin - buttonHeight);
-
-                    chkDefault.Location = new Point(margin, bottomY + Math.Max(0, (buttonHeight - chkDefault.Height) / 2));
-                    var buttonsStartX = rightEdge - (buttonWidth * 2) - 10;
-                    btnOk.Location = new Point(buttonsStartX, bottomY);
-                    btnOk.Size = new Size(buttonWidth, buttonHeight);
-                    btnDelete.Location = new Point(btnOk.Right + 10, bottomY);
-                    btnDelete.Size = new Size(buttonWidth, buttonHeight);
-                    ApplyRoundedRegion(btnOk, 7);
-                    ApplyRoundedRegion(btnDelete, 7);
-                }
-
-                var localDeleteRequested = false;
-                btnDelete.Click += (_, __) =>
-                {
-                    if (!canDelete)
-                    {
-                        return;
-                    }
-                    localDeleteRequested = true;
-                    form.DialogResult = DialogResult.OK;
-                    form.Close();
-                };
-
-                form.Controls.Add(lblPresetName);
-                form.Controls.Add(txtPresetName);
-                form.Controls.Add(lblSortOrder);
-                form.Controls.Add(numSortOrder);
-                form.Controls.Add(lblFuzz);
-                form.Controls.Add(numFuzz);
-                form.Controls.Add(tbFuzz);
-                form.Controls.Add(chkDefault);
-                form.Controls.Add(btnDelete);
-                form.Controls.Add(btnOk);
-
-                form.AcceptButton = btnOk;
-                form.Resize += (_, __) => ApplyDialogLayout();
-                ApplyDialogLayout();
-                form.FormClosed += (_, __) =>
-                {
-                    presetEditorBounds = form.Bounds;
-                    hasPresetEditorBounds = true;
-                    presetEditorSaveAsDefaultChecked = chkDefault.Checked;
-                    SaveImageReplacePresets();
-                };
-
-                if (form.ShowDialog() != DialogResult.OK)
-                {
+                if (dialog.ShowDialog() != DialogResult.OK)
                     return false;
-                }
 
-                if (localDeleteRequested)
+                if (dialog.DeleteRequested)
                 {
                     deleteRequested = true;
                     return true;
                 }
 
-                var name = txtPresetName.Text?.Trim();
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    MessageBox.Show("名称不能为空。", "BioDraw");
+                if (dialog.Result == null)
                     return false;
-                }
 
-                result = new ImageReplacePreset
-                {
-                    Name = name,
-                    SortOrder = Convert.ToInt32(numSortOrder.Value, CultureInfo.InvariantCulture),
-                    TargetColor = source.TargetColor,
-                    Mode = source.Mode,
-                    ReplacementColor = source.ReplacementColor,
-                    FuzzPercent = PresetManager.NormalizeFuzzPercent(Convert.ToDouble(numFuzz.Value, CultureInfo.InvariantCulture))
-                };
-                setAsDefault = chkDefault.Checked;
-                presetEditorSaveAsDefaultChecked = chkDefault.Checked;
+                result = dialog.Result;
+                setAsDefault = dialog.SetAsDefault;
+                presetEditorSaveAsDefaultChecked = dialog.SetAsDefault;
                 return true;
             }
         }
